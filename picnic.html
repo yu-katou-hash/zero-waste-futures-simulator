@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Less Plastic, More Picnic — 横浜市インパクトシミュレーター</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;   /* blue: 主系列 */
+    --series-1-light: #86b6ef;   /* blue step 250: メータートラック・現状 */
+    --series-1-dark:  #104281;   /* blue step 650 */
+    --pole-cool:      #2a78d6;   /* diverging: 便益 */
+    --pole-warm:      #e34948;   /* diverging: 費用 */
+    --area-wash:      rgba(42,120,214,0.10);
+    --good-text:      #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-1-light: #184f95;
+      --series-1-dark:  #86b6ef;
+      --pole-cool:      #3987e5;
+      --pole-warm:      #e66767;
+      --area-wash:      rgba(57,135,229,0.12);
+      --good-text:      #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-1-light: #184f95;
+    --series-1-dark:  #86b6ef;
+    --pole-cool:      #3987e5;
+    --pole-warm:      #e66767;
+    --area-wash:      rgba(57,135,229,0.12);
+    --good-text:      #0ca30c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  header h1 { font-size: 24px; font-weight: 700; letter-spacing: 0.01em; }
+  header .sub { color: var(--text-secondary); margin-top: 4px; font-size: 14px; }
+  header .note { color: var(--text-muted); margin-top: 6px; font-size: 12px; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  section { margin-top: 28px; }
+  h2 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .h2sub { color: var(--text-secondary); font-size: 12.5px; margin-bottom: 14px; }
+
+  /* ---- controls ---- */
+  .controls { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: flex-end; margin-top: 20px; }
+  .ctl { min-width: 260px; flex: 1; }
+  .ctl label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 2px; }
+  .ctl .val { font-size: 22px; font-weight: 700; }
+  .ctl .val small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--series-1); margin-top: 6px; }
+  .presets { display: flex; gap: 8px; }
+  .presets button {
+    font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border); background: transparent; color: var(--text-primary); cursor: pointer;
+  }
+  .presets button:hover { background: var(--area-wash); }
+  .presets button[aria-pressed="true"] { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+  /* ---- KPI row ---- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .lbl { font-size: 12px; color: var(--text-secondary); }
+  .tile .v { font-size: 26px; font-weight: 600; margin-top: 2px; }
+  .tile .v small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 2px; }
+  .tile .d { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .tile.hero .v { font-size: 48px; font-weight: 700; line-height: 1.15; }
+  .tile.hero { grid-column: span 2; }
+  @media (max-width: 640px) { .tile.hero { grid-column: span 1; } .tile.hero .v { font-size: 36px; } }
+
+  /* ---- meters (infra) ---- */
+  .meter-row { margin-top: 14px; }
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .meter-head .name { font-size: 13px; font-weight: 600; }
+  .meter-head .nums { font-size: 12px; color: var(--text-secondary); }
+  .meter-head .nums strong { color: var(--text-primary); font-weight: 600; }
+  .meter { position: relative; height: 14px; border-radius: 7px; background: var(--series-1-light); margin-top: 6px; overflow: hidden; }
+  .meter .fill { position: absolute; inset: 0 auto 0 0; background: var(--series-1); border-radius: 7px 4px 4px 7px; }
+  .meter .tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-primary); opacity: 0.7; }
+  .meter-foot { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ---- bar rows ---- */
+  .bars { margin-top: 10px; }
+  .brow { display: grid; grid-template-columns: 170px 1fr 110px; gap: 10px; align-items: center; padding: 5px 0; }
+  @media (max-width: 560px) { .brow { grid-template-columns: 110px 1fr 90px; } }
+  .brow .bval { white-space: nowrap; }
+  .brow .blbl { font-size: 12.5px; color: var(--text-secondary); text-align: right; }
+  .brow .btrack { position: relative; height: 20px; }
+  .brow .bfill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--series-1);
+    border-radius: 0 4px 4px 0;
+    min-width: 2px;
+  }
+  .brow .bfill.cost { background: var(--pole-warm); }
+  .brow .bval { font-size: 12.5px; font-weight: 600; }
+  .legend { display: flex; gap: 16px; margin: 8px 0 2px; font-size: 12px; color: var(--text-secondary); }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 12px; height: 12px; border-radius: 3px; background: var(--pole-cool); display: inline-block; }
+  .legend .sw.cost { background: var(--pole-warm); }
+
+  /* ---- small multiples (line charts) ---- */
+  .smgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 14px; }
+  .sm { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 8px; }
+  .sm h3 { font-size: 13px; font-weight: 600; }
+  .sm .smsub { font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px; }
+  .sm svg { width: 100%; height: auto; display: block; touch-action: none; }
+  .sm svg text { font-family: inherit; font-size: 10px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .sm svg .dlab { font-size: 10.5px; font-weight: 600; fill: var(--text-primary); }
+
+  /* ---- tooltip ---- */
+  #tip {
+    position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    max-width: 260px;
+  }
+  #tip .t-title { color: var(--text-secondary); font-size: 11px; margin-bottom: 2px; }
+  #tip .t-row { display: flex; align-items: center; gap: 6px; }
+  #tip .t-key { width: 10px; height: 3px; border-radius: 2px; background: var(--series-1); flex: none; }
+  #tip .t-val { font-weight: 700; }
+  #tip .t-name { color: var(--text-secondary); }
+
+  /* ---- tables ---- */
+  details.tbl { margin-top: 10px; }
+  details.tbl summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+  details.tbl table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  details.tbl th, details.tbl td { padding: 5px 8px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; }
+  details.tbl th:first-child, details.tbl td:first-child { text-align: left; }
+  details.tbl th { color: var(--text-secondary); font-weight: 600; }
+
+  /* ---- assumptions editor ---- */
+  .asm-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 12px; }
+  .asm-group h3 { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); }
+  .asm { display: grid; grid-template-columns: 1fr 110px; gap: 8px; align-items: center; padding: 4px 0; }
+  .asm label { font-size: 12px; color: var(--text-secondary); }
+  .asm label .src { display: block; font-size: 10.5px; color: var(--text-muted); }
+  .asm input {
+    font: inherit; font-size: 13px; padding: 4px 8px; width: 100%;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page); color: var(--text-primary); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .asm .unit { font-size: 11px; color: var(--text-muted); }
+  .asm-inner { display: flex; gap: 6px; align-items: center; }
+  #resetBtn {
+    font: inherit; font-size: 12.5px; margin-top: 14px; padding: 6px 14px;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent;
+    color: var(--text-primary); cursor: pointer;
+  }
+  #resetBtn:hover { background: var(--area-wash); }
+
+  .fixed-data { margin-top: 10px; font-size: 12.5px; color: var(--text-secondary); }
+  .fixed-data table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+  .fixed-data th, .fixed-data td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; }
+  .fixed-data th:first-child, .fixed-data td:first-child { text-align: left; }
+
+  footer { margin-top: 36px; font-size: 11.5px; color: var(--text-muted); }
+  footer ul { margin: 6px 0 0 18px; }
+  footer li { margin-top: 2px; }
+  a { color: var(--series-1); }
+  .equiv { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Less Plastic, More Picnic</h1>
+    <div class="sub">横浜市 プラスチックリフューズインフラ・インパクトシミュレーター — 給水スポット × 容器シェアリング × 量り売り</div>
+    <div class="note">「プラスチックを減らすほど、ピクニックが楽しくなる」プログラムの環境・社会・経済インパクトを、市民参加率とインフラ整備率から推計します。すべての前提値は下部の「前提条件」で編集できます。</div>
+  </header>
+
+  <!-- ============ シナリオ操作（フィルタ行） ============ -->
+  <div class="card" style="margin-top:20px">
+    <div class="presets" id="presets" role="group" aria-label="シナリオプリセット">
+      <button data-p="3"  data-r="40">控えめ（参加率3%）</button>
+      <button data-p="10" data-r="70" aria-pressed="true">標準（参加率10%）</button>
+      <button data-p="25" data-r="100">野心的（参加率25%）</button>
+    </div>
+    <div class="controls">
+      <div class="ctl">
+        <label for="pRate">市民参加率 — プログラムを日常的に利用する市民の割合</label>
+        <div class="val"><span id="pRateVal">10</span><small>%</small> <small id="pRatePeople"></small></div>
+        <input type="range" id="pRate" min="0.5" max="50" step="0.5" value="10">
+      </div>
+      <div class="ctl">
+        <label for="infraRate">インフラ整備率 — ポテンシャル（下記推計）に対する整備水準</label>
+        <div class="val"><span id="infraRateVal">70</span><small>%</small> <small id="infraNote"></small></div>
+        <input type="range" id="infraRate" min="15" max="100" step="5" value="70">
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ KPI ============ -->
+  <div class="kpis" id="kpis">
+    <div class="tile hero">
+      <div class="lbl">年間プラスチック削減量（焼却回避）</div>
+      <div class="v"><span id="kPlastic">–</span><small>t/年</small></div>
+      <div class="d" id="kPlasticD"></div>
+    </div>
+    <div class="tile">
+      <div class="lbl">CO₂削減量</div>
+      <div class="v"><span id="kCo2">–</span><small>t-CO₂/年</small></div>
+      <div class="d" id="kCo2D"></div>
+    </div>
+    <div class="tile">
+      <div class="lbl">経済便益（年間・粗計）</div>
+      <div class="v"><span id="kEcon">–</span></div>
+      <div class="d" id="kEconD"></div>
+    </div>
+    <div class="tile">
+      <div class="lbl">店舗との継続的なつながり</div>
+      <div class="v"><span id="kSocial">–</span><small>組</small></div>
+      <div class="d" id="kSocialD"></div>
+    </div>
+  </div>
+
+  <!-- ============ インフラポテンシャル ============ -->
+  <section>
+    <div class="card">
+      <h2>① インフラポテンシャル推計</h2>
+      <div class="h2sub">濃い青＝本シナリオの整備数、薄い青のトラック＝推計ポテンシャル、黒いティック＝現状。</div>
+      <div id="meters"></div>
+      <details class="tbl"><summary>表で見る</summary><div id="metersTbl"></div></details>
+    </div>
+  </section>
+
+  <!-- ============ 環境 ============ -->
+  <section>
+    <div class="card">
+      <h2>② 環境インパクト</h2>
+      <div class="h2sub">プラスチック焼却回避によるCO₂削減と、週末レジャーの「市外→市内ピクニック」シフトによる移動CO₂削減。</div>
+      <div class="bars" id="envBars"></div>
+      <div class="equiv" id="envEquiv"></div>
+      <details class="tbl"><summary>表で見る</summary><div id="envTbl"></div></details>
+    </div>
+  </section>
+
+  <!-- ============ 社会 ============ -->
+  <section>
+    <div class="card">
+      <h2>③ 社会インパクト（関係人口）</h2>
+      <div class="h2sub">給水・容器返却・量り売りは店舗との反復的な接点を生み、「顔の見える関係」を蓄積します。</div>
+      <div class="kpis" style="margin-top:10px">
+        <div class="tile">
+          <div class="lbl">店舗との継続的なつながり</div>
+          <div class="v"><span id="sRel">–</span><small>組</small></div>
+          <div class="d">参加者 × 関係構築率 × 平均行きつけ店舗数</div>
+        </div>
+        <div class="tile">
+          <div class="lbl">年間の店舗接点回数</div>
+          <div class="v"><span id="sTouch">–</span><small>回/年</small></div>
+          <div class="d">給水・容器・量り売りの延べ利用回数</div>
+        </div>
+        <div class="tile">
+          <div class="lbl">市内ピクニック人日</div>
+          <div class="v"><span id="sPicnic">–</span><small>人日/年</small></div>
+          <div class="d">参加者 × 年間市内ピクニック回数</div>
+        </div>
+      </div>
+      <div class="bars" id="socialBars" style="margin-top:16px"></div>
+      <details class="tbl"><summary>表で見る</summary><div id="socialTbl"></div></details>
+    </div>
+  </section>
+
+  <!-- ============ 経済 ============ -->
+  <section>
+    <div class="card">
+      <h2>④ 経済インパクト</h2>
+      <div class="h2sub">年間の便益（市内で新たに生まれる消費・収入・コスト削減）と費用（インセンティブ原資）。導入補助金は初期費用として別掲。</div>
+      <div class="legend"><span class="k"><span class="sw"></span>便益</span><span class="k"><span class="sw cost"></span>費用</span></div>
+      <div class="bars" id="econBars"></div>
+      <div class="kpis" style="margin-top:16px">
+        <div class="tile">
+          <div class="lbl">年間純便益（便益 − インセンティブ費用）</div>
+          <div class="v"><span id="eNet">–</span></div>
+          <div class="d" id="eNetD"></div>
+        </div>
+        <div class="tile">
+          <div class="lbl">便益 / 費用比（年間）</div>
+          <div class="v"><span id="eBC">–</span><small>倍</small></div>
+          <div class="d">インセンティブ費用1円あたりの便益</div>
+        </div>
+        <div class="tile">
+          <div class="lbl">導入補助金（初期・一回限り）</div>
+          <div class="v"><span id="eCapex">–</span></div>
+          <div class="d" id="eCapexD"></div>
+        </div>
+      </div>
+      <details class="tbl"><summary>表で見る</summary><div id="econTbl"></div></details>
+    </div>
+  </section>
+
+  <!-- ============ 感度分析 ============ -->
+  <section>
+    <div class="card">
+      <h2>⑤ 参加率を変えると？（感度分析）</h2>
+      <div class="h2sub">他の前提を固定し、市民参加率0.5〜50%で各インパクトがどう変わるか。●が現在のシナリオ。</div>
+      <div class="smgrid" id="smGrid"></div>
+      <details class="tbl"><summary>表で見る（参加率5%刻み）</summary><div id="smTbl"></div></details>
+    </div>
+  </section>
+
+  <!-- ============ 前提条件 ============ -->
+  <section>
+    <div class="card">
+      <h2>⑥ 前提条件（編集できます）</h2>
+      <div class="h2sub">値を変更すると全ての推計が即時に再計算されます。</div>
+
+      <div class="fixed-data">
+        <strong>固定の基礎データ（横浜市ごみ量）</strong>
+        <table>
+          <tr><th>項目</th><th>値</th></tr>
+          <tr><td>生活系の燃やすごみ</td><td>500,980 t/年</td></tr>
+          <tr><td>うちプラスチック類（12.5%）</td><td id="fxPla">62,623 t/年</td></tr>
+          <tr><td>　うちプラスチック製容器包装（5.8%）</td><td id="fxPack">29,057 t/年</td></tr>
+          <tr><td>　うちペットボトル（0.1%）</td><td id="fxPet">501 t/年</td></tr>
+          <tr><td>事業系の燃やすごみ</td><td>340,756 t/年</td></tr>
+          <tr><td>うちプラスチック類</td><td>26,920 t/年</td></tr>
+        </table>
+      </div>
+
+      <div class="asm-groups" id="asmGroups"></div>
+      <button id="resetBtn">初期値に戻す</button>
+    </div>
+  </section>
+
+  <footer>
+    <strong>モデルの考え方・データ出典</strong>
+    <ul>
+      <li>推計は「参加者数 × 一人あたり行動量 × 原単位」の透明な掛け算のみで構成し、乗数効果などの間接効果は含めていません（保守的な推計）。</li>
+      <li>ごみ量データ：横浜市提供値（生活系燃やすごみ 500,980 t/年・プラ12.5%、事業系 340,756 t/年・プラ26,920 t）。</li>
+      <li>マイボトルスポット現状508か所：<a href="https://mybottlespot.city.yokohama.lg.jp/" target="_blank" rel="noopener">横浜マイボトルスポット検索</a>（資源循環局）。</li>
+      <li>ごみ処理原価：横浜市「<a href="https://www.city.yokohama.lg.jp/kurashi/sumai-kurashi/gomi-recycle/ongen/data/30gomiryo-keihi.html" target="_blank" rel="noopener">ごみ処理にかかる費用は？</a>」（1トンあたり約39,000円、うち焼却・埋立等の処理処分は約12,000円）。既定値では控えめに処理処分費のみを削減効果として計上。</li>
+      <li>人口：横浜市推計人口（約377万人）。飲食店数は経済センサス活動調査ベースの概数（約13,000事業所）を既定値とし、編集可能。</li>
+      <li>廃プラスチック焼却のCO₂原単位 2.77 t-CO₂/t、自家用車 0.130 kg-CO₂/km は環境省・国交省の公表係数に基づく代表値。</li>
+      <li>スギの木のCO₂吸収量は約8.8 kg-CO₂/本・年（林野庁）、1世帯あたり年間排出量は約2.7 t-CO₂（家庭部門）として換算。</li>
+      <li>本ツールは政策検討用の概算モデルです。個別の値は出典データの更新にあわせて「前提条件」で調整してください。</li>
+    </ul>
+  </footer>
+</div>
+
+<div id="tip" role="status"></div>
+
+<script>
+"use strict";
+
+/* ================= パラメータ定義 ================= */
+const PARAM_DEFS = [
+  // 都市データ
+  { key:"pop",            group:"都市データ",         label:"横浜市の人口",                     unit:"人",     def:3770000, src:"横浜市推計人口（2025）" },
+  { key:"restaurants",    group:"都市データ",         label:"市内の飲食店数",                   unit:"店",     def:13000,   src:"経済センサス活動調査（概数）" },
+  { key:"pubFacilities",  group:"都市データ",         label:"給水機設置候補の公共施設数",       unit:"施設",   def:2600,    src:"区役所・地区センター・図書館・学校・公園等" },
+
+  // インフラポテンシャル
+  { key:"curSpots",       group:"インフラポテンシャル", label:"給水スポット（現状）",             unit:"か所",   def:508,     src:"横浜マイボトルスポット検索" },
+  { key:"pubInstallRate", group:"インフラポテンシャル", label:"公共施設への設置可能率",           unit:"%",      def:60,      src:"仮定" },
+  { key:"restSpotRate",   group:"インフラポテンシャル", label:"飲食店の給水協力率",               unit:"%",      def:15,      src:"仮定" },
+  { key:"curReuse",       group:"インフラポテンシャル", label:"容器シェア導入店（現状）",         unit:"店",     def:10,      src:"仮定（Megloo等の先行事例規模）" },
+  { key:"takeoutRate",    group:"インフラポテンシャル", label:"飲食店のテイクアウト実施率",       unit:"%",      def:55,      src:"仮定" },
+  { key:"reuseAdoptRate", group:"インフラポテンシャル", label:"うち容器シェア導入可能率",         unit:"%",      def:25,      src:"仮定" },
+  { key:"curBulk",        group:"インフラポテンシャル", label:"量り売り店舗（現状）",             unit:"店",     def:15,      src:"仮定" },
+  { key:"bulkCatchment",  group:"インフラポテンシャル", label:"量り売り1店舗あたり商圏人口",      unit:"人",     def:30000,   src:"近隣型商圏の仮定" },
+
+  // 利用行動（参加者1人あたり）
+  { key:"bottleUses",     group:"利用行動",           label:"給水利用（週あたり）",             unit:"回/週",  def:3,   step:0.5, src:"仮定" },
+  { key:"bottleG",        group:"利用行動",           label:"回避ペットボトル重量",             unit:"g/本",   def:30,  src:"600ml PET＋キャップ・ラベル" },
+  { key:"containerUses",  group:"利用行動",           label:"容器シェア利用（週あたり）",       unit:"回/週",  def:1,   step:0.5, src:"仮定" },
+  { key:"containerG",     group:"利用行動",           label:"回避テイクアウト容器重量",         unit:"g/個",   def:40,  src:"フタ付き弁当容器＋カトラリー" },
+  { key:"bulkUses",       group:"利用行動",           label:"量り売り利用（週あたり）",         unit:"回/週",  def:0.5, step:0.25, src:"仮定" },
+  { key:"bulkG",          group:"利用行動",           label:"回避包装材重量",                   unit:"g/回",   def:30,  src:"仮定" },
+  { key:"shiftRate",      group:"利用行動",           label:"週末レジャーを市内に切替える割合", unit:"%",      def:30,  src:"仮定（参加者のうち）" },
+  { key:"tripsPerYear",   group:"利用行動",           label:"切替回数（年あたり）",             unit:"回/年",  def:10,  src:"仮定（月1回弱）" },
+  { key:"picnicsPerYear", group:"利用行動",           label:"市内ピクニック回数（年あたり）",   unit:"回/年",  def:12,  src:"仮定" },
+
+  // 環境係数
+  { key:"co2PerPlaT",     group:"環境係数",           label:"廃プラ焼却CO₂原単位",             unit:"t-CO₂/t", def:2.77, step:0.01, src:"環境省係数（代表値）" },
+  { key:"carKm",          group:"環境係数",           label:"回避される自家用車移動（往復）",   unit:"km/回",  def:60,  src:"市外レジャー平均の仮定" },
+  { key:"carEf",          group:"環境係数",           label:"自家用車CO₂排出係数",             unit:"kg/km",  def:0.130, step:0.005, src:"国交省（代表値）" },
+  { key:"localTripCo2",   group:"環境係数",           label:"市内移動のCO₂（公共交通・往復）", unit:"kg/回",  def:0.5, step:0.1, src:"鉄道・バス係数より" },
+
+  // 社会係数
+  { key:"relRate",        group:"社会係数",           label:"店舗と顔見知りになる参加者割合",   unit:"%",      def:40,  src:"仮定" },
+  { key:"shopsPerPerson", group:"社会係数",           label:"平均行きつけ店舗数",               unit:"店/人",  def:3,   src:"仮定" },
+
+  // 経済係数
+  { key:"spendPerTrip",   group:"経済係数",           label:"市内シフト1回あたり消費額",        unit:"円/回",  def:3500, step:100, src:"飲食・買い物等（交通費除く）" },
+  { key:"farePerTrip",    group:"経済係数",           label:"公共交通運賃（往復）",             unit:"円/回",  def:600,  step:50, src:"市内平均の仮定" },
+  { key:"disposalCost",   group:"経済係数",           label:"ごみ処理処分費（焼却・埋立等）",   unit:"円/t",   def:12000, step:1000, src:"横浜市（処理原価39,000円/tの内数）" },
+  { key:"incentivePerPerson", group:"経済係数",       label:"インセンティブ原資（参加者1人あたり年間）", unit:"円/人", def:2000, step:100, src:"ポイント・無料利用券・交通割引の原資" },
+  { key:"subsidySpot",    group:"経済係数",           label:"給水機設置補助（1か所）",          unit:"万円",   def:30,  src:"仮定" },
+  { key:"subsidyReuse",   group:"経済係数",           label:"容器シェア導入補助（1店）",        unit:"万円",   def:20,  src:"仮定" },
+  { key:"subsidyBulk",    group:"経済係数",           label:"量り売り開業補助（1店）",          unit:"万円",   def:100, src:"仮定" },
+];
+
+const WASTE = {
+  homeBurn: 500980, plaShare: 0.125, packShare: 0.058, petShare: 0.001,
+  bizBurn: 340756, bizPla: 26920,
+};
+
+const params = {};
+PARAM_DEFS.forEach(d => params[d.key] = d.def);
+
+let pRate = 10;     // 参加率 %
+let infraRate = 70; // 整備率 %
+
+/* ================= 計算モデル ================= */
+function compute(p, r, q) {
+  const u = r / 100;                       // インフラ整備率＝利用機会係数
+  const N = q.pop * (p / 100);             // 参加者数
+
+  // --- ポテンシャル ---
+  const potSpots = Math.round(q.pubFacilities * q.pubInstallRate / 100 + q.restaurants * q.restSpotRate / 100);
+  const potReuse = Math.round(q.restaurants * (q.takeoutRate / 100) * (q.reuseAdoptRate / 100));
+  const potBulk  = Math.round(q.pop / q.bulkCatchment);
+  const scSpots = Math.max(q.curSpots, Math.round(potSpots * u));
+  const scReuse = Math.max(q.curReuse, Math.round(potReuse * u));
+  const scBulk  = Math.max(q.curBulk,  Math.round(potBulk  * u));
+
+  // --- プラスチック削減（t/年）: g/週 × 52 ---
+  const petT  = N * u * q.bottleUses    * 52 * q.bottleG    / 1e6;
+  const contT = N * u * q.containerUses * 52 * q.containerG / 1e6;
+  const bulkT = N * u * q.bulkUses      * 52 * q.bulkG      / 1e6;
+  const plaT  = petT + contT + bulkT;
+
+  const homePla  = WASTE.homeBurn * WASTE.plaShare;
+  const homePack = WASTE.homeBurn * (WASTE.packShare + WASTE.petShare);
+
+  // --- 環境 ---
+  const co2Pla = plaT * q.co2PerPlaT;
+  const shiftedTrips = N * (q.shiftRate / 100) * q.tripsPerYear;
+  const co2PerTrip = Math.max(0, q.carKm * q.carEf - q.localTripCo2); // kg
+  const co2Mob = shiftedTrips * co2PerTrip / 1000;
+  const co2 = co2Pla + co2Mob;
+
+  // --- 社会 ---
+  const rel = N * (q.relRate / 100) * q.shopsPerPerson;
+  const touchBottle = N * u * q.bottleUses * 52;
+  const touchCont   = N * u * q.containerUses * 52;
+  const touchBulk   = N * u * q.bulkUses * 52;
+  const touches = touchBottle + touchCont + touchBulk;
+  const picnicDays = N * q.picnicsPerYear;
+
+  // --- 経済（円/年） ---
+  const spendShift = shiftedTrips * q.spendPerTrip;
+  const transitRev = shiftedTrips * q.farePerTrip;
+  const incinSave  = plaT * q.disposalCost;
+  const benefits = spendShift + transitRev + incinSave;
+  const incentive = N * q.incentivePerPerson;
+  const net = benefits - incentive;
+  const capex = (scSpots - q.curSpots) * q.subsidySpot * 1e4
+              + (scReuse - q.curReuse) * q.subsidyReuse * 1e4
+              + (scBulk  - q.curBulk)  * q.subsidyBulk  * 1e4;
+
+  return {
+    N, u, potSpots, potReuse, potBulk, scSpots, scReuse, scBulk,
+    petT, contT, bulkT, plaT, homePla, homePack,
+    co2Pla, co2Mob, co2, shiftedTrips, co2PerTrip,
+    rel, touches, touchBottle, touchCont, touchBulk, picnicDays,
+    spendShift, transitRev, incinSave, benefits, incentive, net, capex,
+  };
+}
+
+/* ================= フォーマッタ ================= */
+const nf0 = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 });
+function fmtT(x)   { return x >= 100 ? nf0.format(Math.round(x)) : (Math.round(x * 10) / 10).toLocaleString("ja-JP"); }
+function fmtInt(x) { return nf0.format(Math.round(x)); }
+function fmtPeople(x) {
+  if (x >= 1e4) return (Math.round(x / 1e3) / 10).toLocaleString("ja-JP") + "万人";
+  return nf0.format(Math.round(x)) + "人";
+}
+function fmtCount(x) {
+  if (x >= 1e8) return (Math.round(x / 1e7) / 10).toLocaleString("ja-JP") + "億";
+  if (x >= 1e4) return nf0.format(Math.round(x / 1e4)) + "万";
+  return nf0.format(Math.round(x));
+}
+function fmtYen(x) {
+  const sign = x < 0 ? "−" : "";
+  const a = Math.abs(x);
+  if (a >= 1e8) return sign + (Math.round(a / 1e7) / 10).toLocaleString("ja-JP") + "億円";
+  if (a >= 1e4) return sign + nf0.format(Math.round(a / 1e4)) + "万円";
+  return sign + nf0.format(Math.round(a)) + "円";
+}
+
+/* ================= ツールチップ ================= */
+const tip = document.getElementById("tip");
+function showTip(html, x, y) {
+  tip.replaceChildren(...html);
+  tip.style.display = "block";
+  const r = tip.getBoundingClientRect();
+  let left = x + 14, top = y + 14;
+  if (left + r.width > window.innerWidth - 8) left = x - r.width - 10;
+  if (top + r.height > window.innerHeight - 8) top = y - r.height - 10;
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+function tipRows(title, rows) {
+  const frag = [];
+  const t = document.createElement("div"); t.className = "t-title"; t.textContent = title; frag.push(t);
+  rows.forEach(([name, val, color]) => {
+    const row = document.createElement("div"); row.className = "t-row";
+    const k = document.createElement("span"); k.className = "t-key"; if (color) k.style.background = color;
+    const v = document.createElement("span"); v.className = "t-val"; v.textContent = val;
+    const n = document.createElement("span"); n.className = "t-name"; n.textContent = name;
+    row.append(k, v, n); frag.push(row);
+  });
+  return frag;
+}
+
+/* ================= 描画: メーター ================= */
+function renderMeters(o) {
+  const el = document.getElementById("meters");
+  el.replaceChildren();
+  const items = [
+    { name: "マイボトル給水スポット", cur: params.curSpots, sc: o.scSpots, pot: o.potSpots, unit: "か所",
+      foot: `ポテンシャル＝公共施設${fmtInt(params.pubFacilities)}×${params.pubInstallRate}% ＋ 飲食店${fmtInt(params.restaurants)}×${params.restSpotRate}%` },
+    { name: "テイクアウト容器シェア導入店", cur: params.curReuse, sc: o.scReuse, pot: o.potReuse, unit: "店",
+      foot: `ポテンシャル＝飲食店${fmtInt(params.restaurants)}×テイクアウト実施${params.takeoutRate}%×導入可能${params.reuseAdoptRate}%` },
+    { name: "量り売り店舗", cur: params.curBulk, sc: o.scBulk, pot: o.potBulk, unit: "店",
+      foot: `ポテンシャル＝人口${fmtInt(params.pop)}人 ÷ 商圏${fmtInt(params.bulkCatchment)}人/店` },
+  ];
+  items.forEach(it => {
+    const row = document.createElement("div"); row.className = "meter-row";
+    const head = document.createElement("div"); head.className = "meter-head";
+    const nm = document.createElement("span"); nm.className = "name"; nm.textContent = it.name;
+    const nums = document.createElement("span"); nums.className = "nums";
+    nums.append(`現状 ${fmtInt(it.cur)} → シナリオ `);
+    const st = document.createElement("strong"); st.textContent = fmtInt(it.sc);
+    nums.append(st, ` / ポテンシャル ${fmtInt(it.pot)}${it.unit}`);
+    head.append(nm, nums);
+    const meter = document.createElement("div"); meter.className = "meter";
+    meter.setAttribute("role", "img");
+    meter.setAttribute("aria-label", `${it.name}: 現状${fmtInt(it.cur)}、シナリオ${fmtInt(it.sc)}、ポテンシャル${fmtInt(it.pot)}${it.unit}`);
+    const fill = document.createElement("div"); fill.className = "fill";
+    fill.style.width = Math.min(100, it.sc / it.pot * 100) + "%";
+    const tick = document.createElement("div"); tick.className = "tick";
+    tick.style.left = "calc(" + Math.min(100, it.cur / it.pot * 100) + "% - 1px)";
+    meter.append(fill, tick);
+    meter.addEventListener("pointermove", e => showTip(tipRows(it.name, [
+      ["シナリオ整備数", fmtInt(it.sc) + it.unit, "var(--series-1)"],
+      ["ポテンシャル", fmtInt(it.pot) + it.unit, "var(--series-1-light)"],
+      ["現状", fmtInt(it.cur) + it.unit, "var(--text-primary)"],
+    ]), e.clientX, e.clientY));
+    meter.addEventListener("pointerleave", hideTip);
+    const foot = document.createElement("div"); foot.className = "meter-foot"; foot.textContent = it.foot;
+    row.append(head, meter, foot);
+    el.append(row);
+  });
+  renderTable("metersTbl", ["区分", "現状", "シナリオ", "ポテンシャル"],
+    items.map(it => [it.name, fmtInt(it.cur), fmtInt(it.sc), fmtInt(it.pot)]));
+}
+
+/* ================= 描画: 横棒 ================= */
+function renderBars(elId, rows, fmt, title) {
+  const el = document.getElementById(elId);
+  el.replaceChildren();
+  const max = Math.max(...rows.map(r => r.v), 1e-9);
+  rows.forEach(r => {
+    const row = document.createElement("div"); row.className = "brow";
+    const lbl = document.createElement("div"); lbl.className = "blbl"; lbl.textContent = r.name;
+    const track = document.createElement("div"); track.className = "btrack";
+    const fill = document.createElement("div"); fill.className = "bfill" + (r.cost ? " cost" : "");
+    fill.style.width = Math.max(0.4, r.v / max * 100) + "%";
+    track.append(fill);
+    track.addEventListener("pointermove", e => showTip(
+      tipRows(title, [[r.name, fmt(r.v), r.cost ? "var(--pole-warm)" : "var(--series-1)"]]),
+      e.clientX, e.clientY));
+    track.addEventListener("pointerleave", hideTip);
+    const val = document.createElement("div"); val.className = "bval"; val.textContent = fmt(r.v);
+    row.append(lbl, track, val);
+    el.append(row);
+  });
+}
+
+function renderTable(elId, head, rows) {
+  const el = document.getElementById(elId);
+  const tbl = document.createElement("table");
+  const trh = document.createElement("tr");
+  head.forEach(h => { const th = document.createElement("th"); th.textContent = h; trh.append(th); });
+  tbl.append(trh);
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    r.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.append(td); });
+    tbl.append(tr);
+  });
+  el.replaceChildren(tbl);
+}
+
+/* ================= 描画: 折れ線（感度分析） ================= */
+function niceTicks(max) {
+  if (max <= 0) return [0, 1];
+  const raw = max / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || 10 * mag;
+  const ticks = [];
+  for (let v = 0; v <= max * 1.001; v += step) ticks.push(v);
+  if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+  return ticks;
+}
+
+function renderLineChart(container, def, xs, ys, curX, curY, fmt) {
+  const W = 320, H = 190, m = { t: 12, r: 14, b: 26, l: 46 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const ticks = niceTicks(Math.max(...ys));
+  const yMax = ticks[ticks.length - 1];
+  const X = v => m.l + (v - xs[0]) / (xs[xs.length - 1] - xs[0]) * iw;
+  const Y = v => m.t + ih - v / yMax * ih;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("aria-label", def.title + " 参加率別の推計値");
+
+  // grid + y labels
+  ticks.forEach(t => {
+    const ln = document.createElementNS(ns, "line");
+    ln.setAttribute("x1", m.l); ln.setAttribute("x2", W - m.r);
+    ln.setAttribute("y1", Y(t)); ln.setAttribute("y2", Y(t));
+    ln.setAttribute("stroke", t === 0 ? "var(--baseline)" : "var(--grid)");
+    ln.setAttribute("stroke-width", "1");
+    svg.append(ln);
+    const tx = document.createElementNS(ns, "text");
+    tx.setAttribute("x", m.l - 6); tx.setAttribute("y", Y(t) + 3);
+    tx.setAttribute("text-anchor", "end");
+    tx.textContent = def.tickFmt(t);
+    svg.append(tx);
+  });
+  // x labels
+  [0, 10, 20, 30, 40, 50].forEach(v => {
+    if (v < xs[0]) return;
+    const tx = document.createElementNS(ns, "text");
+    tx.setAttribute("x", X(Math.max(v, xs[0]))); tx.setAttribute("y", H - 8);
+    tx.setAttribute("text-anchor", "middle");
+    tx.textContent = v + "%";
+    svg.append(tx);
+  });
+
+  // area wash + line
+  const pts = xs.map((x, i) => `${X(x)},${Y(ys[i])}`);
+  const area = document.createElementNS(ns, "polygon");
+  area.setAttribute("points", `${m.l},${Y(0)} ${pts.join(" ")} ${W - m.r},${Y(0)}`);
+  area.setAttribute("fill", "var(--area-wash)");
+  svg.append(area);
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", pts.join(" "));
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", "var(--series-1)");
+  line.setAttribute("stroke-width", "2");
+  line.setAttribute("stroke-linejoin", "round");
+  line.setAttribute("stroke-linecap", "round");
+  svg.append(line);
+
+  // crosshair (hidden until hover)
+  const cross = document.createElementNS(ns, "line");
+  cross.setAttribute("y1", m.t); cross.setAttribute("y2", m.t + ih);
+  cross.setAttribute("stroke", "var(--baseline)"); cross.setAttribute("stroke-width", "1");
+  cross.style.display = "none";
+  svg.append(cross);
+  const hoverDot = document.createElementNS(ns, "circle");
+  hoverDot.setAttribute("r", "4.5");
+  hoverDot.setAttribute("fill", "var(--series-1)");
+  hoverDot.setAttribute("stroke", "var(--surface-1)");
+  hoverDot.setAttribute("stroke-width", "2");
+  hoverDot.style.display = "none";
+  svg.append(hoverDot);
+
+  // current-scenario marker + selective direct label
+  const dot = document.createElementNS(ns, "circle");
+  dot.setAttribute("cx", X(curX)); dot.setAttribute("cy", Y(curY));
+  dot.setAttribute("r", "5");
+  dot.setAttribute("fill", "var(--series-1)");
+  dot.setAttribute("stroke", "var(--surface-1)");
+  dot.setAttribute("stroke-width", "2");
+  svg.append(dot);
+  const dl = document.createElementNS(ns, "text");
+  dl.setAttribute("class", "dlab");
+  const anchorLeft = X(curX) > m.l + iw * 0.6;
+  dl.setAttribute("x", X(curX) + (anchorLeft ? -8 : 8));
+  dl.setAttribute("y", Math.max(m.t + 10, Y(curY) - 8));
+  dl.setAttribute("text-anchor", anchorLeft ? "end" : "start");
+  dl.textContent = fmt(curY);
+  svg.append(dl);
+
+  svg.addEventListener("pointermove", e => {
+    const rect = svg.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width * W;
+    const frac = Math.min(1, Math.max(0, (px - m.l) / iw));
+    const xv = xs[0] + frac * (xs[xs.length - 1] - xs[0]);
+    let idx = 0, best = Infinity;
+    xs.forEach((x, i) => { const d = Math.abs(x - xv); if (d < best) { best = d; idx = i; } });
+    cross.setAttribute("x1", X(xs[idx])); cross.setAttribute("x2", X(xs[idx]));
+    cross.style.display = "";
+    hoverDot.setAttribute("cx", X(xs[idx])); hoverDot.setAttribute("cy", Y(ys[idx]));
+    hoverDot.style.display = "";
+    showTip(tipRows(`参加率 ${xs[idx]}%`, [[def.title, fmt(ys[idx]), "var(--series-1)"]]), e.clientX, e.clientY);
+  });
+  svg.addEventListener("pointerleave", () => { cross.style.display = "none"; hoverDot.style.display = "none"; hideTip(); });
+
+  container.append(svg);
+}
+
+/* ================= 感度分析 ================= */
+const SM_DEFS = [
+  { key: "plaT",  title: "プラスチック削減量", sub: "t/年",   fmt: v => fmtT(v) + " t",    tickFmt: v => fmtCount(v) },
+  { key: "co2",   title: "CO₂削減量",          sub: "t-CO₂/年", fmt: v => fmtT(v) + " t",  tickFmt: v => fmtCount(v) },
+  { key: "net",   title: "年間純便益",          sub: "円/年（便益−インセンティブ費用）", fmt: v => fmtYen(v), tickFmt: v => v >= 1e8 ? (v / 1e8) + "億" : fmtCount(v) },
+];
+
+function renderSensitivity() {
+  const grid = document.getElementById("smGrid");
+  grid.replaceChildren();
+  const xs = [];
+  for (let p = 0.5; p <= 50.0001; p += 0.5) xs.push(Math.round(p * 10) / 10);
+  const series = xs.map(p => compute(p, infraRate, params));
+  const cur = compute(pRate, infraRate, params);
+  SM_DEFS.forEach(def => {
+    const box = document.createElement("div"); box.className = "sm";
+    const h = document.createElement("h3"); h.textContent = def.title;
+    const s = document.createElement("div"); s.className = "smsub"; s.textContent = def.sub;
+    box.append(h, s);
+    renderLineChart(box, def, xs, series.map(o => Math.max(0, o[def.key])), pRate, Math.max(0, cur[def.key]), def.fmt);
+    grid.append(box);
+  });
+  // table (5% steps)
+  const rows = [];
+  for (let p = 5; p <= 50; p += 5) {
+    const o = compute(p, infraRate, params);
+    rows.push([p + "%", fmtT(o.plaT) + " t", fmtT(o.co2) + " t", fmtYen(o.net)]);
+  }
+  renderTable("smTbl", ["参加率", "プラ削減", "CO₂削減", "年間純便益"], rows);
+}
+
+/* ================= 前提条件エディタ ================= */
+function renderAssumptions() {
+  const wrap = document.getElementById("asmGroups");
+  wrap.replaceChildren();
+  const groups = [...new Set(PARAM_DEFS.map(d => d.group))];
+  groups.forEach(g => {
+    const box = document.createElement("div"); box.className = "asm-group";
+    const h = document.createElement("h3"); h.textContent = g; box.append(h);
+    PARAM_DEFS.filter(d => d.group === g).forEach(d => {
+      const row = document.createElement("div"); row.className = "asm";
+      const lbl = document.createElement("label");
+      lbl.setAttribute("for", "asm_" + d.key);
+      lbl.textContent = d.label;
+      const src = document.createElement("span"); src.className = "src"; src.textContent = d.src;
+      lbl.append(src);
+      const inner = document.createElement("div"); inner.className = "asm-inner";
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.id = "asm_" + d.key;
+      inp.value = params[d.key]; inp.min = 0;
+      if (d.step) inp.step = d.step;
+      inp.addEventListener("input", () => {
+        const v = parseFloat(inp.value);
+        if (!isNaN(v) && v >= 0) { params[d.key] = v; renderAll(false); }
+      });
+      const un = document.createElement("span"); un.className = "unit"; un.textContent = d.unit;
+      inner.append(inp, un);
+      row.append(lbl, inner);
+      box.append(row);
+    });
+    wrap.append(box);
+  });
+}
+
+/* ================= 全体描画 ================= */
+function renderAll(rebuildAsm) {
+  const o = compute(pRate, infraRate, params);
+
+  document.getElementById("pRateVal").textContent = pRate;
+  document.getElementById("pRatePeople").textContent = "＝約" + fmtPeople(o.N);
+  document.getElementById("infraRateVal").textContent = infraRate;
+  document.getElementById("infraNote").textContent =
+    "（現状は給水スポットでポテンシャルの約" + Math.round(params.curSpots / Math.max(1, o.potSpots) * 100) + "%）";
+
+  // KPI
+  document.getElementById("kPlastic").textContent = fmtT(o.plaT);
+  document.getElementById("kPlasticD").textContent =
+    "生活系プラごみ焼却量の" + (Math.round(o.plaT / o.homePla * 1000) / 10) + "%（容器包装＋PET比では" + (Math.round(o.plaT / o.homePack * 1000) / 10) + "%）を回避";
+  document.getElementById("kCo2").textContent = fmtT(o.co2);
+  document.getElementById("kCo2D").textContent = "焼却回避 " + fmtT(o.co2Pla) + " t ＋ 移動シフト " + fmtT(o.co2Mob) + " t";
+  document.getElementById("kEcon").textContent = fmtYen(o.benefits);
+  document.getElementById("kEconD").textContent = "市内消費シフト・公共交通収入・焼却コスト削減の合計";
+  document.getElementById("kSocial").textContent = fmtCount(o.rel);
+  document.getElementById("kSocialD").textContent = "参加者と行きつけ店舗の「顔の見える関係」";
+
+  // ① meters
+  renderMeters(o);
+
+  // ② env
+  renderBars("envBars", [
+    { name: "プラ焼却回避によるCO₂削減", v: o.co2Pla },
+    { name: "移動シフトによるCO₂削減", v: o.co2Mob },
+  ], v => fmtT(v) + " t-CO₂", "CO₂削減の内訳");
+  const cedar = o.co2 * 1000 / 8.8, hh = o.co2 / 2.7;
+  document.getElementById("envEquiv").textContent =
+    "合計 " + fmtT(o.co2) + " t-CO₂/年 ≒ スギの木 約" + fmtCount(cedar) + "本の年間吸収量 ≒ 約" + fmtCount(hh) + "世帯の年間排出量。" +
+    "市外→市内シフトは年間延べ" + fmtCount(o.shiftedTrips) + "回（1回あたり約" + (Math.round(o.co2PerTrip * 10) / 10) + " kg-CO₂削減）。";
+  renderTable("envTbl", ["項目", "値"], [
+    ["プラスチック削減量（PETボトル分）", fmtT(o.petT) + " t/年"],
+    ["プラスチック削減量（テイクアウト容器分）", fmtT(o.contT) + " t/年"],
+    ["プラスチック削減量（量り売り包装分）", fmtT(o.bulkT) + " t/年"],
+    ["プラスチック削減量 合計", fmtT(o.plaT) + " t/年"],
+    ["CO₂削減（焼却回避）", fmtT(o.co2Pla) + " t/年"],
+    ["CO₂削減（移動シフト）", fmtT(o.co2Mob) + " t/年"],
+    ["CO₂削減 合計", fmtT(o.co2) + " t/年"],
+  ]);
+
+  // ③ social
+  document.getElementById("sRel").textContent = fmtCount(o.rel);
+  document.getElementById("sTouch").textContent = fmtCount(o.touches);
+  document.getElementById("sPicnic").textContent = fmtCount(o.picnicDays);
+  renderBars("socialBars", [
+    { name: "給水スポット利用", v: o.touchBottle },
+    { name: "容器シェア利用", v: o.touchCont },
+    { name: "量り売り利用", v: o.touchBulk },
+  ], v => fmtCount(v) + " 回/年", "店舗接点回数の内訳");
+  renderTable("socialTbl", ["項目", "値"], [
+    ["店舗との継続的なつながり", fmtInt(o.rel) + " 組"],
+    ["年間店舗接点回数（給水）", fmtInt(o.touchBottle) + " 回"],
+    ["年間店舗接点回数（容器シェア）", fmtInt(o.touchCont) + " 回"],
+    ["年間店舗接点回数（量り売り）", fmtInt(o.touchBulk) + " 回"],
+    ["市内ピクニック人日", fmtInt(o.picnicDays) + " 人日/年"],
+  ]);
+
+  // ④ econ
+  renderBars("econBars", [
+    { name: "市内消費へのシフト", v: o.spendShift },
+    { name: "公共交通の運賃収入", v: o.transitRev },
+    { name: "ごみ焼却コスト削減", v: o.incinSave },
+    { name: "インセンティブ原資", v: o.incentive, cost: true },
+  ], fmtYen, "経済インパクト（年間）");
+  document.getElementById("eNet").textContent = fmtYen(o.net);
+  document.getElementById("eNetD").textContent = "便益 " + fmtYen(o.benefits) + " − 費用 " + fmtYen(o.incentive);
+  document.getElementById("eBC").textContent = (Math.round(o.benefits / Math.max(1, o.incentive) * 10) / 10).toLocaleString("ja-JP");
+  document.getElementById("eCapex").textContent = fmtYen(o.capex);
+  document.getElementById("eCapexD").textContent =
+    "給水機" + fmtInt(o.scSpots - params.curSpots) + "か所・容器シェア" + fmtInt(o.scReuse - params.curReuse) + "店・量り売り" + fmtInt(o.scBulk - params.curBulk) + "店の新規導入分";
+  renderTable("econTbl", ["項目", "区分", "金額/年"], [
+    ["市内消費へのシフト（飲食・買い物）", "便益", fmtYen(o.spendShift)],
+    ["公共交通の運賃収入", "便益", fmtYen(o.transitRev)],
+    ["ごみ焼却コスト削減", "便益", fmtYen(o.incinSave)],
+    ["便益合計", "", fmtYen(o.benefits)],
+    ["インセンティブ原資（ポイント・無料券・交通割引）", "費用", fmtYen(o.incentive)],
+    ["年間純便益", "", fmtYen(o.net)],
+    ["導入補助金（初期・一回限り）", "初期費用", fmtYen(o.capex)],
+  ]);
+
+  // ⑤ sensitivity
+  renderSensitivity();
+
+  // 固定データ表示
+  document.getElementById("fxPla").textContent  = fmtInt(WASTE.homeBurn * WASTE.plaShare) + " t/年";
+  document.getElementById("fxPack").textContent = fmtInt(WASTE.homeBurn * WASTE.packShare) + " t/年";
+  document.getElementById("fxPet").textContent  = fmtInt(WASTE.homeBurn * WASTE.petShare) + " t/年";
+
+  if (rebuildAsm) renderAssumptions();
+}
+
+/* ================= イベント ================= */
+const pSlider = document.getElementById("pRate");
+const rSlider = document.getElementById("infraRate");
+function clearPresets() {
+  document.querySelectorAll("#presets button").forEach(b => b.setAttribute("aria-pressed", "false"));
+}
+pSlider.addEventListener("input", () => { pRate = parseFloat(pSlider.value); clearPresets(); renderAll(false); });
+rSlider.addEventListener("input", () => { infraRate = parseFloat(rSlider.value); clearPresets(); renderAll(false); });
+document.querySelectorAll("#presets button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    clearPresets();
+    btn.setAttribute("aria-pressed", "true");
+    pRate = parseFloat(btn.dataset.p); infraRate = parseFloat(btn.dataset.r);
+    pSlider.value = pRate; rSlider.value = infraRate;
+    renderAll(false);
+  });
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  PARAM_DEFS.forEach(d => params[d.key] = d.def);
+  renderAll(true);
+});
+
+renderAll(true);
+</script>
+</body>
+</html>

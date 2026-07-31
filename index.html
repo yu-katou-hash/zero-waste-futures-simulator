@@ -291,6 +291,7 @@
     <button type="button" id="tabbtn-sim" role="tab">② シミュレーション</button>
     <button type="button" id="tabbtn-method" role="tab">③ 計算方法</button>
     <button type="button" id="tabbtn-compost" role="tab">④ 生ごみ循環（横浜）</button>
+    <button type="button" id="tabbtn-picnic" role="tab">⑤ プラ削減×ピクニック（横浜）</button>
   </nav>
 
   <!-- ======== タブ①：データ入力 ======== -->
@@ -445,6 +446,21 @@
       </div>
     </div>
     <iframe id="compost-frame" src="compost.html" title="横浜 生ごみ循環シミュレーター" loading="lazy"
+      style="width:100%; border:none; min-height:600px; display:block;"></iframe>
+  </section>
+
+  <section class="tab" id="tab-picnic">
+    <div class="card">
+      <h2>Less Plastic, More Picnic — 横浜市インパクトシミュレーター</h2>
+      <div class="note">
+        マイボトル給水スポット・テイクアウト容器シェアリング・量り売り店舗を市内全域に広げ、
+        利用するほどピクニック特典（公園無料利用券・グッズポイント・公共交通割引）がもらえる
+        プラスチックリフューズ施策のインパクトを試算します。インフラの設置ポテンシャル推計を前提に、
+        市民参加率に応じた環境（プラ削減・CO2）・社会（関係人口）・経済（市内消費・焼却コスト削減）効果を確認できます。
+        <a href="picnic.html" target="_blank" rel="noopener">単独ページで開く</a>
+      </div>
+    </div>
+    <iframe id="picnic-frame" src="picnic.html" title="Less Plastic, More Picnic 横浜市インパクトシミュレーター" loading="lazy"
       style="width:100%; border:none; min-height:600px; display:block;"></iframe>
   </section>
 
@@ -691,19 +707,20 @@ function attachTooltip(node, getLines) {
 // ============================================================
 // タブ
 // ============================================================
-const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"], ["compost", "tabbtn-compost", "tab-compost"]];
+const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"], ["compost", "tabbtn-compost", "tab-compost"], ["picnic", "tabbtn-picnic", "tab-picnic"]];
 function showTab(name) {
   for (const [n, btnId, secId] of TABS) {
     document.getElementById(btnId).classList.toggle("active", n === name);
     document.getElementById(secId).classList.toggle("active", n === name);
   }
   if (name === "sim") refreshSim();
-  if (name === "compost") fitCompostFrame();
+  if (name === "compost") fitFrame("compost-frame");
+  if (name === "picnic") fitFrame("picnic-frame");
 }
 
-// 生ごみ循環タブ：同一オリジンのiframeを内容の高さに合わせる
-function fitCompostFrame() {
-  const frame = document.getElementById("compost-frame");
+// 埋め込みタブ：同一オリジンのiframeを内容の高さに合わせる
+function fitFrame(frameId) {
+  const frame = document.getElementById(frameId);
   let height = null;
   try {
     const doc = frame.contentDocument;
@@ -719,7 +736,8 @@ function fitCompostFrame() {
   } catch (e) { /* クロスオリジン時はフォールバックへ */ }
   frame.style.height = height ? height + "px" : "85vh";
 }
-document.getElementById("compost-frame").addEventListener("load", fitCompostFrame);
+document.getElementById("compost-frame").addEventListener("load", () => fitFrame("compost-frame"));
+document.getElementById("picnic-frame").addEventListener("load", () => fitFrame("picnic-frame"));
 for (const [n, btnId] of TABS) {
   document.getElementById(btnId).addEventListener("click", () => showTab(n));
 }
