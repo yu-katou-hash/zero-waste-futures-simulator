@@ -290,6 +290,7 @@
     <button type="button" id="tabbtn-input" class="active" role="tab">① データ入力</button>
     <button type="button" id="tabbtn-sim" role="tab">② シミュレーション</button>
     <button type="button" id="tabbtn-method" role="tab">③ 計算方法</button>
+    <button type="button" id="tabbtn-compost" role="tab">④ 生ごみ循環（横浜）</button>
   </nav>
 
   <!-- ======== タブ①：データ入力 ======== -->
@@ -430,6 +431,21 @@
         <li>入力データはこのブラウザのlocalStorageに保存されます。サーバーには送信されません。</li>
       </ul>
     </div>
+  </section>
+
+  <!-- ======== タブ④：生ごみ循環（横浜） ======== -->
+  <section class="tab" id="tab-compost">
+    <div class="card">
+      <h2>横浜 生ごみ循環シミュレーター</h2>
+      <div class="note">
+        家庭のコンポストバッグ（一次処理）→ 地域のコミュニティコンポスト場（二次処理）→
+        マイクロモビリティ配送 → 市内農家とのマッチング、という生ごみの地域内循環モデルを試算します。
+        実施エリア（全市＋18区）を選ぶと、市全体の生活系生ごみの削減率・CO2削減・関係人口・経済循環効果が確認できます。
+        <a href="compost.html" target="_blank" rel="noopener">単独ページで開く</a>
+      </div>
+    </div>
+    <iframe id="compost-frame" src="compost.html" title="横浜 生ごみ循環シミュレーター" loading="lazy"
+      style="width:100%; border:none; min-height:600px; display:block;"></iframe>
   </section>
 
 </div>
@@ -675,14 +691,35 @@ function attachTooltip(node, getLines) {
 // ============================================================
 // タブ
 // ============================================================
-const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"]];
+const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"], ["compost", "tabbtn-compost", "tab-compost"]];
 function showTab(name) {
   for (const [n, btnId, secId] of TABS) {
     document.getElementById(btnId).classList.toggle("active", n === name);
     document.getElementById(secId).classList.toggle("active", n === name);
   }
   if (name === "sim") refreshSim();
+  if (name === "compost") fitCompostFrame();
 }
+
+// 生ごみ循環タブ：同一オリジンのiframeを内容の高さに合わせる
+function fitCompostFrame() {
+  const frame = document.getElementById("compost-frame");
+  let height = null;
+  try {
+    const doc = frame.contentDocument;
+    if (doc && doc.body && doc.documentElement.scrollHeight > 100) {
+      height = doc.documentElement.scrollHeight + 24;
+      if (!frame.dataset.observed && typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(() => {
+          frame.style.height = (doc.documentElement.scrollHeight + 24) + "px";
+        }).observe(doc.body);
+        frame.dataset.observed = "1";
+      }
+    }
+  } catch (e) { /* クロスオリジン時はフォールバックへ */ }
+  frame.style.height = height ? height + "px" : "85vh";
+}
+document.getElementById("compost-frame").addEventListener("load", fitCompostFrame);
 for (const [n, btnId] of TABS) {
   document.getElementById(btnId).addEventListener("click", () => showTab(n));
 }

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>横浜 生ごみ循環シミュレーター</title>
+<style>
+  :root {
+    --page: #f6f7f3;
+    --surface: #fdfdfb;
+    --ink: #171a14;
+    --ink-2: #575c51;
+    --ink-3: #8b9084;
+    --line: #e3e4dc;
+    --accent: #1f6b3d;
+    --accent-ink: #175530;
+    --accent-soft: #e6f0e7;
+    --chip: #eef1ea;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --grid: #e1e0d9;
+    --shadow: 0 1px 2px rgba(23, 26, 20, 0.05);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --page: #0e100d;
+      --surface: #181b16;
+      --ink: #f1f2ec;
+      --ink-2: #b8bdb0;
+      --ink-3: #878c80;
+      --line: #2b2e28;
+      --accent: #63b983;
+      --accent-ink: #7bcd97;
+      --accent-soft: #1e2b22;
+      --chip: #22261f;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --grid: #2c2c2a;
+      --shadow: none;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #0e100d;
+    --surface: #181b16;
+    --ink: #f1f2ec;
+    --ink-2: #b8bdb0;
+    --ink-3: #878c80;
+    --line: #2b2e28;
+    --accent: #63b983;
+    --accent-ink: #7bcd97;
+    --accent-soft: #1e2b22;
+    --chip: #22261f;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --grid: #2c2c2a;
+    --shadow: none;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --page: #f6f7f3;
+    --surface: #fdfdfb;
+    --ink: #171a14;
+    --ink-2: #575c51;
+    --ink-3: #8b9084;
+    --line: #e3e4dc;
+    --accent: #1f6b3d;
+    --accent-ink: #175530;
+    --accent-soft: #e6f0e7;
+    --chip: #eef1ea;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --grid: #e1e0d9;
+    --shadow: 0 1px 2px rgba(23, 26, 20, 0.05);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .app { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 600; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 4.4vw, 38px); line-height: 1.3; margin: 0 0 14px;
+    font-weight: 700; letter-spacing: 0.01em; text-wrap: balance;
+  }
+  .lede { max-width: 620px; color: var(--ink-2); margin: 0 0 22px; }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .flow .step {
+    background: var(--chip); border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 14px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap;
+  }
+  .flow .step b { color: var(--ink); font-weight: 600; }
+  .flow .arrow { color: var(--ink-3); font-size: 12px; }
+
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 18px; font-weight: 700; margin: 0 0 6px; letter-spacing: 0.01em;
+  }
+  .section-note { color: var(--ink-2); font-size: 13px; margin: 0 0 18px; max-width: 640px; }
+
+  /* ---------- potential cards ---------- */
+  .potential-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .pcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 22px 24px; box-shadow: var(--shadow);
+  }
+  .pcard h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  .pcard .big { font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+  .pcard .big small { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 2px; }
+  .pcard .calc {
+    margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line);
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .pcard .calc div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .pcard .calc .v { font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+
+  /* ---------- controls ---------- */
+  .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .ctrl-group {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; box-shadow: var(--shadow);
+  }
+  .ctrl-group h3 { margin: 0 0 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-ink); }
+  .ctrl { margin-bottom: 16px; }
+  .ctrl:last-child { margin-bottom: 2px; }
+  .ctrl .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .ctrl label { font-size: 13px; color: var(--ink-2); }
+  .ctrl .val { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ctrl input[type="range"] { width: 100%; accent-color: var(--accent); margin: 6px 0 0; display: block; }
+  .ctrl input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .ctrl select {
+    width: 100%; margin-top: 6px; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+    font: inherit; font-size: 13px;
+  }
+  .ctrl select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ctrl .hint { font-size: 11.5px; color: var(--ink-3); margin-top: 5px; }
+  details.adv { grid-column: 1 / -1; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+  details.adv summary {
+    cursor: pointer; padding: 14px 22px; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--accent-ink); list-style: none;
+  }
+  details.adv summary::-webkit-details-marker { display: none; }
+  details.adv summary::after { content: "＋ 開く"; float: right; font-weight: 400; color: var(--ink-3); }
+  details.adv[open] summary::after { content: "− 閉じる"; }
+  details.adv .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 28px; padding: 4px 22px 18px; }
+
+  /* ---------- KPI tiles ---------- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent);
+  }
+  .kpi h3 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+  .kpi .num { font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; }
+  .kpi .num small { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 3px; }
+  .kpi .sub { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+  .kpi .sub .v { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .meter-card {
+    margin-top: 16px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 22px; box-shadow: var(--shadow);
+  }
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .meter-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .meter-head .pct { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meter-track { margin-top: 10px; height: 10px; border-radius: 5px; background: var(--chip); overflow: hidden; }
+  .meter-fill { height: 100%; border-radius: 5px 4px 4px 5px; background: var(--accent); transition: width 0.25s ease; }
+  @media (prefers-reduced-motion: reduce) { .meter-fill { transition: none; } }
+  .meter-note { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+
+  /* ---------- charts ---------- */
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px 16px; box-shadow: var(--shadow);
+  }
+  .chart-card h3 { margin: 0 0 2px; font-size: 14px; font-weight: 700; }
+  .chart-card .unit { font-size: 12px; color: var(--ink-3); margin: 0 0 12px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .bars { display: flex; flex-direction: column; gap: 12px; }
+  .bar-row { cursor: default; }
+  .bar-row .bl { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; }
+  .bar-row .bv { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .bar-row .track { height: 14px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+  .bar-row .fill { height: 100%; border-radius: 3px; min-width: 2px; transition: width 0.25s ease; }
+  @media (prefers-reduced-motion: reduce) { .bar-row .fill { transition: none; } }
+  .bar-row:hover .track, .bar-row:focus-visible .track { outline: 2px solid var(--ink-3); outline-offset: 1px; }
+
+  #tooltip {
+    position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: var(--ink); color: var(--page); padding: 7px 11px; border-radius: 8px;
+    font-size: 12px; line-height: 1.5; max-width: 260px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+
+  /* ---------- table ---------- */
+  details.tbl {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  }
+  details.tbl summary { cursor: pointer; padding: 14px 22px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-ink); list-style: none; }
+  details.tbl summary::-webkit-details-marker { display: none; }
+  .tbl-wrap { overflow-x: auto; padding: 0 22px 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+  tr.grp td { font-weight: 700; color: var(--accent-ink); border-bottom-color: var(--accent); padding-top: 16px; }
+
+  /* ---------- notes ---------- */
+  .notes { font-size: 13px; color: var(--ink-2); }
+  .notes h3 { font-size: 13.5px; color: var(--ink); margin: 20px 0 6px; }
+  .notes ul { margin: 6px 0; padding-left: 20px; }
+  .notes li { margin: 4px 0; }
+  .notes code {
+    background: var(--chip); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 6px; font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .notes a { color: var(--accent-ink); }
+  .disclaimer {
+    margin-top: 26px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--accent-soft); font-size: 12.5px; color: var(--ink-2);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="eyebrow">Yokohama Green Loop</p>
+    <h1>横浜 生ごみ循環シミュレーター</h1>
+    <p class="lede">
+      家庭のコンポストバッグで一次処理した生ごみを、地域のコミュニティコンポスト場で二次処理し、
+      マイクロモビリティで近隣農家へ届ける——この地域内循環が横浜市にもたらすインパクトを、
+      市の実データにもとづいて試算します。スライダーを動かすと結果が即時に更新されます。
+    </p>
+    <div class="flow" aria-label="仕組みの流れ">
+      <span class="step"><b>家庭</b>｜コンポストバッグで一次処理</span><span class="arrow">→</span>
+      <span class="step"><b>地域拠点</b>｜コミュニティコンポストで二次処理</span><span class="arrow">→</span>
+      <span class="step"><b>配送</b>｜マイクロモビリティ</span><span class="arrow">→</span>
+      <span class="step"><b>農家</b>｜堆肥として活用・マッチング</span>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-potential">
+    <h2 id="h-potential">横浜市のポテンシャル</h2>
+    <p class="section-note">シミュレーションの土台となる 2 つの上限値。実データからの推計で、下のスライダーとは独立に固定表示しています。</p>
+    <div class="potential-grid">
+      <div class="pcard">
+        <h3>① 市内農地の堆肥需要ポテンシャル（理論最大）</h3>
+        <div class="big" id="pot-demand">—</div>
+        <div class="calc">
+          <div><span>市内農地面積（畑93%・農家3,451戸）</span><span class="v">2,850 ha</span></div>
+          <div><span>市街化調整区域（うち農振農用地 約1,000ha）</span><span class="v">約 2,350 ha</span></div>
+          <div><span>農業専用地区（市独自・28地区）</span><span class="v">約 1,070 ha</span></div>
+          <div><span>市街化区域内（うち生産緑地 約280ha）</span><span class="v">約 500 ha</span></div>
+          <div><span>堆肥施用量の目安（農水省 施肥基準）</span><span class="v">1.5 t/10a・年</span></div>
+        </div>
+      </div>
+      <div class="pcard">
+        <h3>② 屋上農地化による農地拡大ポテンシャル</h3>
+        <div class="big" id="pot-rooftop">—</div>
+        <div class="calc">
+          <div><span>市街化区域（市域437km²の約76%）</span><span class="v">約 332 km²</span></div>
+          <div><span>建物の水平投影面積（約25%と仮定）</span><span class="v">約 8,300 ha</span></div>
+          <div><span>うち耐荷重・日照・平屋根等の適性 3%</span><span class="v">約 250 ha</span></div>
+          <div><span>既存農地に対する拡大率（フル活用時）</span><span class="v" id="pot-rooftop-ratio">—</span></div>
+        </div>
+      </div>
+      <div class="pcard">
+        <h3>③ 家庭系生ごみの堆肥供給ポテンシャル（理論最大）</h3>
+        <div class="big" id="pot-supply">—</div>
+        <div class="calc">
+          <div><span>生活系可燃ごみ（市データ）</span><span class="v">500,980 t/年</span></div>
+          <div><span>うち生ごみ（組成調査）</span><span class="v">33.9% ≒ 169,832 t/年</span></div>
+          <div><span>堆肥転換率（水分蒸発・分解後）</span><span class="v">25%</span></div>
+          <div><span>需要ポテンシャル①との比率</span><span class="v" id="pot-balance">—</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-controls">
+    <h2 id="h-controls">シナリオ設定</h2>
+    <p class="section-note">参加率や受入率を動かして、需給とインパクトの変化を確かめてください。詳細係数（CO2原単位・単価など）も調整できます。</p>
+    <div class="controls-grid" id="controls"></div>
+  </section>
+
+  <section aria-labelledby="h-kpi">
+    <h2 id="h-kpi">年間インパクト試算</h2>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <h3>生ごみの削減量（焼却からの分岐）</h3>
+        <div class="num"><span id="k-waste">—</span><small>t/年</small></div>
+        <div class="sub">2tパッカー車 <span class="v" id="k-trucks">—</span> 台分 ・ エリア内生ごみの <span class="v" id="k-ward-share">—</span></div>
+      </div>
+      <div class="kpi">
+        <h3>CO2排出削減（肥料輸入削減＋焼却回避）</h3>
+        <div class="num"><span id="k-co2">—</span><small>t-CO2/年</small></div>
+        <div class="sub">スギの木 <span class="v" id="k-co2-trees">—</span> 本の年間吸収量に相当</div>
+      </div>
+      <div class="kpi">
+        <h3>農家とのマッチング件数</h3>
+        <div class="num"><span id="k-match">—</span><small>件</small></div>
+        <div class="sub">コンポスト拠点 <span class="v" id="k-hubs">—</span> か所 × 受入農家 <span class="v" id="k-farmers">—</span> 戸</div>
+      </div>
+      <div class="kpi">
+        <h3>関係人口の創出</h3>
+        <div class="num"><span id="k-people">—</span><small>人</small></div>
+        <div class="sub">参加 <span class="v" id="k-participants">—</span> 人 ＋ 拠点運営 <span class="v" id="k-volunteers">—</span> 人 ＋ 農家 <span class="v" id="k-farmers2">—</span> 戸</div>
+      </div>
+      <div class="kpi">
+        <h3>市内経済循環効果</h3>
+        <div class="num"><span id="k-econ">—</span><small>億円/年</small></div>
+        <div class="sub">直接効果 <span class="v" id="k-econ-direct">—</span> 億円 × 波及乗数 <span class="v" id="k-mult">—</span></div>
+      </div>
+    </div>
+    <div class="meter-card">
+      <div class="meter-head">
+        <h3>堆肥の需給カバー率（供給 ÷ 需要）</h3>
+        <span class="pct" id="m-pct">—</span>
+      </div>
+      <div class="meter-track"><div class="meter-fill" id="m-fill" style="width:0%"></div></div>
+      <p class="meter-note" id="m-note">—</p>
+    </div>
+    <div class="meter-card">
+      <div class="meter-head">
+        <h3>横浜市全体の家庭系生ごみ（約17.0万t/年）に対する削減率</h3>
+        <span class="pct" id="mw-pct">—</span>
+      </div>
+      <div class="meter-track"><div class="meter-fill" id="mw-fill" style="width:0%"></div></div>
+      <p class="meter-note" id="mw-note">—</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-charts">
+    <h2 id="h-charts">内訳</h2>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>堆肥の需給バランス</h3>
+        <p class="unit">t/年</p>
+        <div class="legend">
+          <span><i style="background:var(--series-1)"></i>供給（市民コンポスト）</span>
+          <span><i style="background:var(--series-2)"></i>需要（農地の受入量）</span>
+        </div>
+        <div class="bars" id="chart-balance"></div>
+      </div>
+      <div class="chart-card">
+        <h3>CO2削減の内訳</h3>
+        <p class="unit">t-CO2/年</p>
+        <div class="bars" id="chart-co2"></div>
+      </div>
+      <div class="chart-card">
+        <h3>経済循環（直接効果）の内訳</h3>
+        <p class="unit">百万円/年</p>
+        <div class="bars" id="chart-econ"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <details class="tbl">
+      <summary>数表（すべての計算値を表示）</summary>
+      <div class="tbl-wrap">
+        <table id="datatable" aria-label="計算値一覧"></table>
+      </div>
+    </details>
+  </section>
+
+  <section class="notes" aria-labelledby="h-notes">
+    <h2 id="h-notes">モデルの考え方と出典</h2>
+
+    <h3>計算モデル</h3>
+    <ul>
+      <li><code>生ごみ回収量 = 実施エリアの世帯数 × 参加率 × 0.259kg/世帯・日 × 365日 × 投入率</code>（0.259kg は生ごみ169,832t/年 ÷ 全市180万世帯から逆算。エリアの世帯数は区別人口 × 市平均の世帯構成比0.478で按分）</li>
+      <li><code>生ごみ削減量 = 生ごみ回収量</code>（焼却からの分岐量）。全市削減率は家庭系生ごみ169,832t/年・生活系可燃ごみ500,980t/年それぞれに対して算出</li>
+      <li><code>堆肥供給量 = 生ごみ回収量 × 堆肥転換率</code>（好気発酵で水分蒸発・分解により重量は約1/4に）</li>
+      <li><code>堆肥需要量 = (対象農地ha × 畑率93% × 受入農家割合 + 屋上農地ha) × 施用量(t/10a) × 10</code>。対象農地は「生産緑地280ha／市街化区域内500ha／＋農業専用地区1,570ha／全農地2,850ha」から選択（マイクロモビリティ配送圏の想定）。農家数は面積比で按分</li>
+      <li><code>CO2削減 = 堆肥t × 有効窒素kg/t × 肥料CO2係数 ＋ 生ごみt × 収集・焼却回避係数</code>。輸送はマイクロモビリティ（電動・近距離）のためゼロと近似</li>
+      <li><code>マッチング件数 = min(拠点数, 受入農家数 × 農家あたり連携拠点数)</code></li>
+      <li><code>経済循環 = (ごみ処理費削減 + 堆肥価値 + 肥料購入削減 + 屋上農園生産額) × 波及乗数</code></li>
+    </ul>
+
+    <h3>データ出典</h3>
+    <ul>
+      <li>生活系可燃ごみ 500,980 t/年・生ごみ組成 33.9% — 横浜市データ（ユーザー提供・令和年度実績）</li>
+      <li>農地 2,850ha（市域の約7%）・農家 3,451戸・畑93% — <a href="https://www.city.yokohama.lg.jp/city-info/yokohamashi/tokei-chosa/portal/bunya/nougyo/bunya0401.html" target="_blank" rel="noopener">横浜市統計ポータル（2020年農林業センサス）</a></li>
+      <li>区域区分：市街化調整区域 約2,350ha（うち農振農用地 約1,000ha）・農業専用地区 28地区 約1,070ha・市街化区域内 約500ha（うち生産緑地 約280ha） — 横浜市「横浜の農業」</li>
+      <li>家庭系食品ロス 約64,000 t/年（生ごみの約4割） — <a href="https://www.city.yokohama.lg.jp/kurashi/sumai-kurashi/gomi-recycle/ongen/data/gomisoseichousa.html" target="_blank" rel="noopener">横浜市 ごみ組成調査（令和6年度）</a></li>
+      <li>堆肥施用量の目安 1〜2 t/10a・堆肥1tで窒素約2kg代替 — <a href="https://www.maff.go.jp/j/seisan/kankyo/hozen_type/h_sehi_kizyun/pdf/tuti302.pdf" target="_blank" rel="noopener">農林水産省 都道府県施肥基準（堆肥施用時の施肥設計）</a>・<a href="https://www.pref.chiba.lg.jp/chikusan/taihiriyou/sanshutsuhou.html" target="_blank" rel="noopener">千葉県 堆肥施用量の算出法</a></li>
+      <li>窒素肥料のライフサイクルCO2 約1.59 kg-CO2/kg-N（尿素・製造流通） — <a href="https://www.jstage.jst.go.jp/article/jsfwr1966/36/3/36_3_141/_article/-char/ja/" target="_blank" rel="noopener">日本土壌肥料学会誌の試算</a>（既定値3.0は海上輸送・施肥時N2O等を含む上乗せ）</li>
+      <li>屋上緑化の全国累計施工面積 約538ha（2020年） — 国土交通省 屋上・壁面緑化施工実績調査</li>
+      <li>スギ1本の年間CO2吸収量 約8.8kg — 林野庁資料</li>
+      <li>区別人口 — 横浜市 推計人口（2025年）の概数。港北区358,935人・戸塚区280,375人・青葉区306,301人等で照合。世帯数は市平均の世帯構成比（約0.478世帯/人）で按分した概数</li>
+    </ul>
+
+    <div class="disclaimer">
+      本ツールは事業構想段階の概算シミュレーターです。屋上ポテンシャル（②）は建物の構造・所有形態を考慮しない粗い推計であり、
+      需要側は品目・時期による受入変動を平均化しています。事業化検討の際は、区単位の農地分布・
+      建物ストック調査・農家ヒアリングによる裏付けを推奨します。
+    </div>
+  </section>
+</div>
+
+<div id="tooltip" role="status"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- 固定ベースライン（出典は下部に記載） ----------
+  var BASE = {
+    households: 1800000,          // 横浜市の世帯数（概数）
+    personsPerHousehold: 2.0,     // 平均世帯人員（概数）
+    burnableWaste: 500980,        // 生活系可燃ごみ t/年（市データ）
+    foodRatio: 0.339,             // 生ごみ組成割合（市データ）
+    farmlandHa: 2850,             // 農地面積 ha（2020農林業センサス）
+    fieldRatio: 0.93,             // 畑の割合
+    farmers: 3451,                // 耕作農家数
+    rooftopPotentialHa: 250,      // 屋上農園の適性面積 ha（推計）
+    cedarKgPerTree: 8.8           // スギ1本の年間CO2吸収 kg
+  };
+  BASE.foodWasteTotal = BASE.burnableWaste * BASE.foodRatio;                       // ≈169,832 t/年
+  BASE.kgPerHouseholdDay = BASE.foodWasteTotal * 1000 / 365 / BASE.households;     // ≈0.259 kg
+
+  // 実施エリア（区別人口は2025年推計の概数。世帯数は市平均の世帯構成比で按分）
+  var WARDS = [
+    { id: "all",      name: "全市（18区）",   pop: 3765000 },
+    { id: "tsurumi",  name: "鶴見区",         pop: 298000 },
+    { id: "kanagawa", name: "神奈川区",       pop: 250000 },
+    { id: "nishi",    name: "西区",           pop: 106000 },
+    { id: "naka",     name: "中区",           pop: 153000 },
+    { id: "minami",   name: "南区",           pop: 197000 },
+    { id: "konan",    name: "港南区",         pop: 214000 },
+    { id: "hodogaya", name: "保土ケ谷区",     pop: 206000 },
+    { id: "asahi",    name: "旭区",           pop: 245000 },
+    { id: "isogo",    name: "磯子区",         pop: 166000 },
+    { id: "kanazawa", name: "金沢区",         pop: 196000 },
+    { id: "kohoku",   name: "港北区",         pop: 359000 },
+    { id: "midori",   name: "緑区",           pop: 183000 },
+    { id: "aoba",     name: "青葉区",         pop: 306000 },
+    { id: "tsuzuki",  name: "都筑区",         pop: 214000 },
+    { id: "totsuka",  name: "戸塚区",         pop: 280000 },
+    { id: "sakae",    name: "栄区",           pop: 120000 },
+    { id: "izumi",    name: "泉区",           pop: 151000 },
+    { id: "seya",     name: "瀬谷区",         pop: 121000 }
+  ];
+  var WARD_MAP = {};
+  WARDS.forEach(function (w) { WARD_MAP[w.id] = w; });
+  var HH_RATIO = BASE.households / WARD_MAP.all.pop; // ≈0.478 世帯/人
+
+  // ---------- 可変パラメータ ----------
+  var PARAMS = [
+    { group: "citizen", id: "participation", label: "コンポスト参加世帯率", min: 0.1, max: 30, step: 0.1, def: 3, unit: "%" },
+    { group: "citizen", id: "captureRate", label: "生ごみの投入率（家庭内での分別度）", min: 30, max: 100, step: 5, def: 80, unit: "%" },
+    { group: "citizen", id: "compostYield", label: "堆肥転換率（生ごみ→完成堆肥）", min: 15, max: 40, step: 1, def: 25, unit: "%" },
+    { group: "citizen", id: "householdsPerHub", label: "コンポスト拠点あたり参加世帯数", min: 30, max: 300, step: 10, def: 100, unit: "世帯" },
+
+    { group: "farm", id: "farmerAccept", label: "堆肥を受け入れる農家の割合", min: 1, max: 100, step: 1, def: 15, unit: "%" },
+    { group: "farm", id: "applicationRate", label: "堆肥施用量", min: 0.5, max: 3, step: 0.1, def: 1.5, unit: "t/10a・年" },
+    { group: "farm", id: "hubsPerFarmer", label: "農家1戸あたり連携拠点数", min: 1, max: 5, step: 1, def: 2, unit: "拠点" },
+    { group: "farm", id: "rooftopAdoption", label: "屋上ポテンシャル250haの実装率", min: 0, max: 100, step: 1, def: 5, unit: "%" },
+
+    { group: "adv", id: "fertCO2", label: "化学肥料CO2係数", min: 1, max: 7, step: 0.1, def: 3.0, unit: "kg-CO2/kg-N" },
+    { group: "adv", id: "wasteCO2", label: "収集・焼却回避のCO2係数", min: 0, max: 150, step: 5, def: 40, unit: "kg-CO2/t生ごみ" },
+    { group: "adv", id: "compostN", label: "堆肥の有効窒素", min: 4, max: 20, step: 1, def: 10, unit: "kg-N/t" },
+    { group: "adv", id: "disposalCost", label: "ごみ処理原価", min: 10000, max: 80000, step: 1000, def: 40000, unit: "円/t" },
+    { group: "adv", id: "compostPrice", label: "堆肥の価値", min: 0, max: 60000, step: 1000, def: 20000, unit: "円/t" },
+    { group: "adv", id: "fertPrice", label: "化学肥料価格（窒素換算）", min: 100, max: 600, step: 10, def: 250, unit: "円/kg-N" },
+    { group: "adv", id: "rooftopRevenue", label: "屋上農園の生産額", min: 100, max: 800, step: 10, def: 300, unit: "万円/ha・年" },
+    { group: "adv", id: "multiplier", label: "経済波及乗数", min: 1.0, max: 2.0, step: 0.05, def: 1.4, unit: "倍" }
+  ];
+
+  // 対象農地（区域区分は横浜市「横浜の農業」より）
+  var ZONES = {
+    seisan:   { label: "生産緑地のみ", ha: 280 },
+    shigaika: { label: "市街化区域内の農地", ha: 500 },
+    senyo:    { label: "市街化区域内＋農業専用地区", ha: 1570 },
+    all:      { label: "市内全農地", ha: 2850 }
+  };
+  var ZONE_OPTIONS = [
+    ["seisan", "生産緑地のみ（約280ha・住宅至近）"],
+    ["shigaika", "市街化区域内の農地（約500ha）"],
+    ["senyo", "＋農業専用地区（約1,570ha）"],
+    ["all", "市内全農地（2,850ha）"]
+  ];
+
+  var state = { targetZone: "shigaika", wardId: "hodogaya" };
+  PARAMS.forEach(function (p) { state[p.id] = p.def; });
+
+  // ---------- ユーティリティ ----------
+  function fmt(n, digits) {
+    if (digits === undefined) digits = 0;
+    return n.toLocaleString("ja-JP", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function fmtUnit(p, v) {
+    if (p.unit === "円/t" || p.unit === "円/kg-N") return fmt(v) + " " + p.unit;
+    var digits = (p.step < 1) ? 1 : 0;
+    return fmt(v, digits) + " " + p.unit;
+  }
+  function el(tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  // ---------- コントロール生成 ----------
+  var GROUPS = [
+    { key: "citizen", title: "市民の参加", host: null },
+    { key: "farm", title: "農家・農地", host: null }
+  ];
+  var controlsHost = document.getElementById("controls");
+  GROUPS.forEach(function (g) {
+    var card = el("div", "ctrl-group");
+    card.appendChild(el("h3", null, g.title));
+    g.host = card;
+    controlsHost.appendChild(card);
+  });
+  // 実施エリアセレクタ（市民の参加グループの先頭）
+  (function buildWardSelector() {
+    var host = GROUPS[0].host;
+    var wrap = el("div", "ctrl");
+    var row = el("div", "row1");
+    var label = el("label", null, "実施エリア");
+    label.setAttribute("for", "in-ward");
+    row.appendChild(label);
+    var sel = document.createElement("select");
+    sel.id = "in-ward";
+    WARDS.forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = w.id;
+      opt.textContent = w.name + "（人口 約" + fmt(Math.round(w.pop / 10000)) + "万人）";
+      sel.appendChild(opt);
+    });
+    sel.value = state.wardId;
+    sel.addEventListener("change", function () {
+      state.wardId = sel.value;
+      render();
+    });
+    wrap.appendChild(row);
+    wrap.appendChild(sel);
+    wrap.appendChild(el("div", "hint", "参加世帯率は選択エリアの世帯数に適用されます。区別人口は2025年推計の概数。"));
+    host.appendChild(wrap);
+  })();
+
+  // 対象農地セレクタ（農家・農地グループの先頭）
+  (function buildZoneSelector() {
+    var farmHost = GROUPS[1].host;
+    var wrap = el("div", "ctrl");
+    var row = el("div", "row1");
+    var label = el("label", null, "堆肥を届ける対象農地");
+    label.setAttribute("for", "in-targetZone");
+    row.appendChild(label);
+    var sel = document.createElement("select");
+    sel.id = "in-targetZone";
+    ZONE_OPTIONS.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o[0]; opt.textContent = o[1];
+      sel.appendChild(opt);
+    });
+    sel.value = state.targetZone;
+    sel.addEventListener("change", function () {
+      state.targetZone = sel.value;
+      render();
+    });
+    wrap.appendChild(row);
+    wrap.appendChild(sel);
+    wrap.appendChild(el("div", "hint", "マイクロモビリティの配送圏を想定。住宅地に近い農地ほど本スキームと相性が良い。"));
+    farmHost.appendChild(wrap);
+  })();
+
+  var adv = el("details", "adv");
+  adv.appendChild(el("summary", null, "詳細係数（CO2原単位・単価・乗数）"));
+  var advGrid = el("div", "adv-grid");
+  adv.appendChild(advGrid);
+  controlsHost.appendChild(adv);
+
+  PARAMS.forEach(function (p) {
+    var wrap = el("div", "ctrl");
+    var row = el("div", "row1");
+    var label = el("label", null, p.label);
+    label.setAttribute("for", "in-" + p.id);
+    var val = el("span", "val");
+    val.id = "val-" + p.id;
+    row.appendChild(label); row.appendChild(val);
+    var input = document.createElement("input");
+    input.type = "range"; input.id = "in-" + p.id;
+    input.min = p.min; input.max = p.max; input.step = p.step; input.value = p.def;
+    input.addEventListener("input", function () {
+      state[p.id] = parseFloat(input.value);
+      render();
+    });
+    wrap.appendChild(row); wrap.appendChild(input);
+    var host = p.group === "adv" ? advGrid :
+      GROUPS.filter(function (g) { return g.key === p.group; })[0].host;
+    host.appendChild(wrap);
+  });
+
+  // ---------- 計算 ----------
+  function compute(s) {
+    var r = {};
+    // 供給側（実施エリアの世帯数ベース）
+    r.ward = WARD_MAP[s.wardId];
+    r.wardHouseholds = r.ward.pop * HH_RATIO;
+    r.participatingHouseholds = r.wardHouseholds * s.participation / 100;
+    r.participants = r.participatingHouseholds * BASE.personsPerHousehold;
+    r.foodWasteCollected = r.participatingHouseholds * BASE.kgPerHouseholdDay * 365 * (s.captureRate / 100) / 1000; // t/年
+    r.compostSupply = r.foodWasteCollected * s.compostYield / 100; // t/年
+    r.hubs = Math.ceil(r.participatingHouseholds / s.householdsPerHub);
+
+    // 生ごみ削減インパクト（焼却からの分岐量）
+    r.wasteReduced = r.foodWasteCollected;
+    r.wardFoodWaste = r.wardHouseholds * BASE.kgPerHouseholdDay * 365 / 1000; // エリア内の家庭系生ごみ t/年
+    r.shareWardFood = r.wardFoodWaste > 0 ? r.wasteReduced / r.wardFoodWaste : 0;
+    r.shareCityFood = r.wasteReduced / BASE.foodWasteTotal;
+    r.shareCityBurnable = r.wasteReduced / BASE.burnableWaste;
+    r.packerTrucks = Math.round(r.wasteReduced / 2); // 2tパッカー車換算
+
+    // 需要側（対象農地の区域区分で絞り込み、農家数は面積比で按分）
+    r.zone = ZONES[s.targetZone];
+    r.zoneHa = r.zone.ha;
+    r.fieldHa = r.zoneHa * BASE.fieldRatio;
+    r.zoneFarmers = Math.round(BASE.farmers * r.zoneHa / BASE.farmlandHa);
+    r.acceptingFarmers = Math.round(r.zoneFarmers * s.farmerAccept / 100);
+    r.rooftopHa = BASE.rooftopPotentialHa * s.rooftopAdoption / 100;
+    r.demandFarm = r.fieldHa * (s.farmerAccept / 100) * s.applicationRate * 10;  // t/年
+    r.demandRooftop = r.rooftopHa * s.applicationRate * 10;                      // t/年
+    r.demandTotal = r.demandFarm + r.demandRooftop;
+    r.coverage = r.demandTotal > 0 ? r.compostSupply / r.demandTotal : 0;
+
+    // マッチング・関係人口
+    r.matches = Math.min(r.hubs, r.acceptingFarmers * s.hubsPerFarmer);
+    r.volunteers = r.hubs * 5;
+    r.relatedPopulation = Math.round(r.participants + r.volunteers + r.acceptingFarmers);
+
+    // CO2（t-CO2/年）
+    r.co2Fertilizer = r.compostSupply * s.compostN * s.fertCO2 / 1000;
+    r.co2Waste = r.foodWasteCollected * s.wasteCO2 / 1000;
+    r.co2Total = r.co2Fertilizer + r.co2Waste;
+    r.cedarTrees = Math.round(r.co2Total * 1000 / BASE.cedarKgPerTree);
+
+    // 経済（円/年）
+    r.econDisposal = r.foodWasteCollected * s.disposalCost;
+    r.econCompost = r.compostSupply * s.compostPrice;
+    r.econFertilizer = r.compostSupply * s.compostN * s.fertPrice;
+    r.econRooftop = r.rooftopHa * s.rooftopRevenue * 10000;
+    r.econDirect = r.econDisposal + r.econCompost + r.econFertilizer + r.econRooftop;
+    r.econTotal = r.econDirect * s.multiplier;
+    return r;
+  }
+
+  // ---------- 描画 ----------
+  var tooltip = document.getElementById("tooltip");
+  function attachTooltip(row, html) {
+    row.addEventListener("mousemove", function (ev) {
+      tooltip.innerHTML = html;
+      tooltip.style.display = "block";
+      var x = Math.min(ev.clientX + 14, window.innerWidth - tooltip.offsetWidth - 8);
+      var y = Math.min(ev.clientY + 14, window.innerHeight - tooltip.offsetHeight - 8);
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    });
+    row.addEventListener("mouseleave", function () { tooltip.style.display = "none"; });
+  }
+
+  function renderBars(hostId, rows, unitFmt) {
+    var host = document.getElementById(hostId);
+    host.innerHTML = "";
+    var max = Math.max.apply(null, rows.map(function (r) { return r.value; }).concat([1]));
+    var total = rows.reduce(function (a, r) { return a + r.value; }, 0);
+    rows.forEach(function (r) {
+      var row = el("div", "bar-row");
+      row.tabIndex = 0;
+      var bl = el("div", "bl");
+      bl.appendChild(el("span", null, r.label));
+      bl.appendChild(el("span", "bv", unitFmt(r.value)));
+      var track = el("div", "track");
+      var fill = el("div", "fill");
+      fill.style.width = Math.max(1, r.value / max * 100) + "%";
+      fill.style.background = r.color;
+      track.appendChild(fill);
+      row.appendChild(bl); row.appendChild(track);
+      var share = total > 0 ? " ・構成比 " + fmt(r.value / total * 100, 1) + "%" : "";
+      attachTooltip(row, "<b>" + r.label + "</b><br>" + unitFmt(r.value) + (r.shareable ? share : ""));
+      host.appendChild(row);
+    });
+  }
+
+  function render() {
+    // スライダー値表示
+    PARAMS.forEach(function (p) {
+      document.getElementById("val-" + p.id).textContent = fmtUnit(p, state[p.id]);
+    });
+
+    var r = compute(state);
+
+    // KPI
+    document.getElementById("k-waste").textContent = fmt(r.wasteReduced);
+    document.getElementById("k-trucks").textContent = fmt(r.packerTrucks);
+    document.getElementById("k-ward-share").textContent = fmt(r.shareWardFood * 100, 1) + "%";
+    document.getElementById("k-co2").textContent = fmt(r.co2Total);
+    document.getElementById("k-co2-trees").textContent = fmt(r.cedarTrees);
+    document.getElementById("k-match").textContent = fmt(r.matches);
+    document.getElementById("k-hubs").textContent = fmt(r.hubs);
+    document.getElementById("k-farmers").textContent = fmt(r.acceptingFarmers);
+    document.getElementById("k-people").textContent = fmt(r.relatedPopulation);
+    document.getElementById("k-participants").textContent = fmt(Math.round(r.participants));
+    document.getElementById("k-volunteers").textContent = fmt(r.volunteers);
+    document.getElementById("k-farmers2").textContent = fmt(r.acceptingFarmers);
+    document.getElementById("k-econ").textContent = fmt(r.econTotal / 1e8, 1);
+    document.getElementById("k-econ-direct").textContent = fmt(r.econDirect / 1e8, 1);
+    document.getElementById("k-mult").textContent = fmt(state.multiplier, 2);
+
+    // 需給メーター
+    var pct = r.coverage * 100;
+    document.getElementById("m-pct").textContent = fmt(pct, 1) + "%";
+    document.getElementById("m-fill").style.width = Math.min(100, pct) + "%";
+    var note;
+    if (pct < 90) {
+      note = "需要が供給を上回っています。参加世帯率を上げる余地があります（供給 " + fmt(r.compostSupply) + " t ／ 需要 " + fmt(r.demandTotal) + " t）。";
+    } else if (pct <= 110) {
+      note = "需給がほぼ均衡しています（供給 " + fmt(r.compostSupply) + " t ／ 需要 " + fmt(r.demandTotal) + " t）。";
+    } else {
+      note = "供給が需要を上回っています。受入農家や屋上農地を増やすか、参加拡大のペースを調整してください（供給 " + fmt(r.compostSupply) + " t ／ 需要 " + fmt(r.demandTotal) + " t）。";
+    }
+    document.getElementById("m-note").textContent = note;
+
+    // 全市の生ごみ削減メーター
+    var cityPct = r.shareCityFood * 100;
+    document.getElementById("mw-pct").textContent = fmt(cityPct, 2) + "%";
+    document.getElementById("mw-fill").style.width = Math.min(100, cityPct) + "%";
+    document.getElementById("mw-note").textContent =
+      r.ward.name + "で実施した場合、市全体の家庭系生ごみ 169,832 t/年 のうち " + fmt(r.wasteReduced) +
+      " t を焼却から分岐（生活系可燃ごみ 500,980 t/年 に対しては " + fmt(r.shareCityBurnable * 100, 2) + "% の削減）。";
+
+    // チャート
+    var s1 = getComputedStyle(document.documentElement).getPropertyValue("--series-1").trim();
+    var s2 = getComputedStyle(document.documentElement).getPropertyValue("--series-2").trim();
+    var tFmt = function (v) { return fmt(v) + " t"; };
+    var co2Fmt = function (v) { return fmt(v, 1) + " t-CO2"; };
+    var yenFmt = function (v) { return fmt(v / 1e6) + " 百万円"; };
+
+    renderBars("chart-balance", [
+      { label: "供給：市民コンポスト由来の堆肥", value: r.compostSupply, color: s1 },
+      { label: "需要：" + r.zone.label + "（受入 " + fmt(state.farmerAccept) + "%）", value: r.demandFarm, color: s2 },
+      { label: "需要：屋上農地（" + fmt(r.rooftopHa, 1) + " ha）", value: r.demandRooftop, color: s2 }
+    ], tFmt);
+
+    renderBars("chart-co2", [
+      { label: "化学肥料の代替（輸入削減）", value: r.co2Fertilizer, color: s1, shareable: true },
+      { label: "生ごみの収集・焼却回避", value: r.co2Waste, color: s1, shareable: true }
+    ], co2Fmt);
+
+    renderBars("chart-econ", [
+      { label: "ごみ処理費の削減", value: r.econDisposal, color: s1, shareable: true },
+      { label: "堆肥の価値（域内生産）", value: r.econCompost, color: s1, shareable: true },
+      { label: "化学肥料の購入削減", value: r.econFertilizer, color: s1, shareable: true },
+      { label: "屋上農園の農産物生産", value: r.econRooftop, color: s1, shareable: true }
+    ], yenFmt);
+
+    // 数表
+    var rows = [
+      ["grp", "供給側", ""],
+      ["", "実施エリア", r.ward.name + "（人口 約" + fmt(Math.round(r.ward.pop / 10000)) + "万人・約" + fmt(Math.round(r.wardHouseholds / 1000)) + "千世帯）"],
+      ["", "参加世帯数", fmt(Math.round(r.participatingHouseholds)) + " 世帯"],
+      ["", "参加人数（世帯人員 " + BASE.personsPerHousehold + " 人）", fmt(Math.round(r.participants)) + " 人"],
+      ["", "生ごみ回収量", fmt(r.foodWasteCollected) + " t/年"],
+      ["", "堆肥供給量", fmt(r.compostSupply) + " t/年"],
+      ["", "コンポスト拠点数", fmt(r.hubs) + " か所"],
+      ["grp", "需要側", ""],
+      ["", "対象農地", r.zone.label + "（" + fmt(r.zoneHa) + " ha）"],
+      ["", "対象エリアの農家数（面積比で按分）", fmt(r.zoneFarmers) + " 戸"],
+      ["", "受入農家数", fmt(r.acceptingFarmers) + " 戸"],
+      ["", "対象農地の堆肥需要", fmt(r.demandFarm) + " t/年"],
+      ["", "屋上農地面積", fmt(r.rooftopHa, 1) + " ha"],
+      ["", "屋上農地の堆肥需要", fmt(r.demandRooftop) + " t/年"],
+      ["", "堆肥需要 合計", fmt(r.demandTotal) + " t/年"],
+      ["", "需給カバー率", fmt(r.coverage * 100, 1) + " %"],
+      ["grp", "インパクト", ""],
+      ["", "生ごみ削減量（焼却からの分岐）", fmt(r.wasteReduced) + " t/年（2tパッカー車 " + fmt(r.packerTrucks) + " 台分）"],
+      ["", "エリア内の家庭系生ごみに対する削減率", fmt(r.shareWardFood * 100, 1) + " %"],
+      ["", "市全体の家庭系生ごみ（169,832t）に対する削減率", fmt(r.shareCityFood * 100, 2) + " %"],
+      ["", "市全体の生活系可燃ごみ（500,980t）に対する削減率", fmt(r.shareCityBurnable * 100, 2) + " %"],
+      ["", "CO2削減：化学肥料代替", fmt(r.co2Fertilizer, 1) + " t-CO2/年"],
+      ["", "CO2削減：収集・焼却回避", fmt(r.co2Waste, 1) + " t-CO2/年"],
+      ["", "CO2削減 合計", fmt(r.co2Total, 1) + " t-CO2/年（スギ " + fmt(r.cedarTrees) + " 本相当）"],
+      ["", "マッチング件数", fmt(r.matches) + " 件"],
+      ["", "関係人口創出", fmt(r.relatedPopulation) + " 人"],
+      ["", "経済効果：ごみ処理費削減", fmt(r.econDisposal / 1e6, 1) + " 百万円/年"],
+      ["", "経済効果：堆肥価値", fmt(r.econCompost / 1e6, 1) + " 百万円/年"],
+      ["", "経済効果：肥料購入削減", fmt(r.econFertilizer / 1e6, 1) + " 百万円/年"],
+      ["", "経済効果：屋上農園生産", fmt(r.econRooftop / 1e6, 1) + " 百万円/年"],
+      ["", "経済循環効果（波及込み）", fmt(r.econTotal / 1e8, 2) + " 億円/年"]
+    ];
+    var tbl = document.getElementById("datatable");
+    tbl.innerHTML = "<thead><tr><th>項目</th><th style='text-align:right'>値</th></tr></thead>";
+    var tbody = document.createElement("tbody");
+    rows.forEach(function (row) {
+      var tr = document.createElement("tr");
+      if (row[0] === "grp") {
+        tr.className = "grp";
+        tr.innerHTML = "<td colspan='2'>" + row[1] + "</td>";
+      } else {
+        tr.innerHTML = "<td>" + row[1] + "</td><td class='n'>" + row[2] + "</td>";
+      }
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+  }
+
+  // ---------- 固定ポテンシャル表示 ----------
+  (function renderPotential() {
+    var maxDemand = BASE.farmlandHa * BASE.fieldRatio * 1.5 * 10; // 全畑地×1.5t/10a
+    var maxSupply = BASE.foodWasteTotal * 0.25;
+    document.getElementById("pot-demand").innerHTML = "約 " + fmt(Math.round(maxDemand / 100) * 100) + "<small>t/年</small>";
+    document.getElementById("pot-rooftop").innerHTML = "約 250<small>ha</small>";
+    document.getElementById("pot-rooftop-ratio").textContent = "+" + fmt(250 / BASE.farmlandHa * 100, 1) + "%";
+    document.getElementById("pot-supply").innerHTML = "約 " + fmt(Math.round(maxSupply / 100) * 100) + "<small>t/年</small>";
+    document.getElementById("pot-balance").textContent = fmt(maxSupply / maxDemand * 100) + "%（ほぼ同規模）";
+  })();
+
+  render();
+})();
+</script>
+</body>
+</html>
