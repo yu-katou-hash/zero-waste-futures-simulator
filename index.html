@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ゼロウェイスト政策シミュレーター（自治体汎用版）</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:           #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-burn:    #2a78d6;  /* 焼却等（slot1 blue） */
+    --series-other:   #eb6834;  /* slot2 orange（予備） */
+    --series-recycle: #1baf7a;  /* 資源化（slot3 aqua） */
+    --delta-good:     #006300;
+    --delta-bad:      #d03b3b;
+    --ghost-fill:     rgba(137,135,129,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:           #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-burn:    #3987e5;
+      --series-other:   #d95926;
+      --series-recycle: #199e70;
+      --delta-good:     #0ca30c;
+      --delta-bad:      #e66767;
+      --ghost-fill:     rgba(137,135,129,0.18);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:           #0d0d0d;
+    --surface-1:      #1a1a19;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-burn:    #3987e5;
+    --series-other:   #d95926;
+    --series-recycle: #199e70;
+    --delta-good:     #0ca30c;
+    --delta-bad:      #e66767;
+    --ghost-fill:     rgba(137,135,129,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: .01em; }
+  header .sub { color: var(--text-secondary); margin-top: 4px; font-size: 13px; }
+  header .sub b { color: var(--text-primary); }
+
+  /* ---- タブ ---- */
+  .tabs {
+    display: flex; gap: 4px; margin-top: 18px;
+    border-bottom: 1px solid var(--baseline);
+  }
+  .tabs button {
+    font: inherit; font-size: 14px; font-weight: 600;
+    padding: 8px 18px; cursor: pointer;
+    background: none; border: none; color: var(--text-secondary);
+    border-bottom: 2.5px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tabs button:hover { color: var(--text-primary); }
+  .tabs button.active { color: var(--text-primary); border-bottom-color: var(--series-burn); }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-top: 16px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card .note { color: var(--text-muted); font-size: 12px; }
+
+  .warn-box {
+    margin-top: 16px; padding: 10px 14px;
+    border-left: 3px solid var(--delta-bad);
+    background: var(--surface-1); border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 6px; font-size: 13px;
+  }
+  .warn-box ul { padding-left: 1.4em; }
+  .warn-box.ok { border-left-color: var(--delta-good); }
+
+  /* ---- 入力フォーム ---- */
+  .settings-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px 16px; margin-top: 12px;
+  }
+  .setting { display: flex; flex-direction: column; gap: 2px; }
+  .setting label { font-size: 12px; color: var(--text-secondary); }
+  .setting input {
+    font: inherit; font-size: 13px; padding: 6px 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page); color: var(--text-primary);
+  }
+  .setting input[type="number"] { font-variant-numeric: tabular-nums; }
+  .setting input[readonly] { color: var(--text-muted); background: transparent; border-style: dashed; }
+  .setting .hint { font-size: 11px; color: var(--text-muted); }
+  .setting-check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 10px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .btn-row button, .btn-row label.file-btn {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); cursor: pointer;
+  }
+  .btn-row button:hover, .btn-row label.file-btn:hover { border-color: var(--baseline); }
+  .btn-row button.primary {
+    background: var(--series-burn); color: #fff; border-color: transparent; font-weight: 600;
+  }
+  .btn-row button.primary:hover { filter: brightness(1.08); }
+  .btn-row input[type="file"] { display: none; }
+
+  /* ---- KPIタイル ---- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .tile .label { color: var(--text-secondary); font-size: 12px; }
+  .tile .value { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .tile .base  { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+  .tile .delta { font-size: 12px; font-weight: 600; margin-top: 2px; }
+  .tile .delta.good { color: var(--delta-good); }
+  .tile .delta.bad  { color: var(--delta-bad); }
+  .tile .delta.zero { color: var(--text-muted); font-weight: 400; }
+
+  /* ---- プリセット ---- */
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .presets button {
+    font: inherit; font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .presets button:hover { border-color: var(--baseline); }
+  .presets button.active { border-color: var(--series-burn); box-shadow: inset 0 0 0 1px var(--series-burn); }
+
+  /* ---- スライダー ---- */
+  .sliders-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 760px) { .sliders-grid { grid-template-columns: 1fr; } }
+  .frac { padding: 10px 0 4px; border-top: 1px solid var(--grid); }
+  .frac:first-of-type { border-top: none; }
+  .frac .frac-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .frac .frac-name { font-weight: 600; font-size: 13.5px; }
+  .frac .frac-base { color: var(--text-muted); font-size: 11.5px; }
+  .lever { display: grid; grid-template-columns: 5.5em 1fr 4.2em; align-items: center; gap: 10px; margin-top: 6px; }
+  .lever label { color: var(--text-secondary); font-size: 12px; }
+  .lever input[type="range"] { width: 100%; accent-color: var(--series-burn); height: 20px; }
+  .lever.div input[type="range"] { accent-color: var(--series-recycle); }
+  .lever output { font-size: 12.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---- 逆算モード ---- */
+  .inv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; font-size: 13px; }
+  .inv-row .inv-label { color: var(--text-secondary); font-size: 12px; min-width: 5em; }
+  .inv-row select, .inv-row input[type="number"] {
+    font: inherit; font-size: 13px; padding: 5px 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page); color: var(--text-primary);
+  }
+  .inv-row input[type="number"] { width: 7.5em; font-variant-numeric: tabular-nums; }
+  .inv-row .inv-check { display: inline-flex; align-items: center; gap: 5px; }
+  .inv-row button.primary {
+    font: inherit; font-size: 13px; font-weight: 600;
+    background: var(--series-burn); color: #fff;
+    border: none; border-radius: 6px; padding: 7px 18px; cursor: pointer;
+  }
+  .inv-row button.primary:hover { filter: brightness(1.08); }
+  #inverse-result {
+    margin-top: 14px; padding: 10px 14px;
+    border-left: 3px solid var(--series-recycle);
+    background: var(--page); border-radius: 6px; font-size: 13px;
+    display: none;
+  }
+  #inverse-result.warn { border-left-color: var(--delta-bad); }
+  #inverse-result b { font-variant-numeric: tabular-nums; }
+
+  /* ---- チャート ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 14px; font-size: 12px; color: var(--text-secondary); }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; }
+  .legend .swatch.ghost { background: var(--ghost-fill); border: 1.5px dashed var(--text-muted); }
+
+  .hbar-row { display: grid; grid-template-columns: 4.5em 1fr; align-items: center; gap: 10px; margin-top: 10px; }
+  .hbar-row .row-label { color: var(--text-secondary); font-size: 12.5px; text-align: right; }
+  .hbar { display: flex; gap: 2px; height: 22px; }
+  .hbar .seg {
+    height: 100%;
+    position: relative;
+    min-width: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: visible;
+    transition: width .25s ease;
+  }
+  .hbar .seg:last-child { border-radius: 0 4px 4px 0; }
+  .hbar .seg.recycle { background: var(--series-recycle); }
+  .hbar .seg.burn    { background: var(--series-burn); }
+  .hbar .seg.ghost   { background: var(--ghost-fill); border: 1.5px dashed var(--text-muted); }
+  .hbar .seg .seg-label {
+    font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap;
+    pointer-events: none;
+  }
+  .hbar .seg.ghost .seg-label { color: var(--text-secondary); }
+  .axis-note { color: var(--text-muted); font-size: 11.5px; margin-top: 8px; }
+
+  .mini-row { display: grid; grid-template-columns: 10em 1fr; align-items: center; gap: 10px; margin-top: 8px; }
+  .mini-row .mini-label { font-size: 12px; color: var(--text-secondary); text-align: right; }
+  .mini-row .mini-label b { color: var(--text-primary); font-weight: 600; }
+  .mini-bar { display: flex; gap: 2px; height: 16px; }
+  .mini-bar .seg { height: 100%; }
+  .mini-bar .seg:last-child { border-radius: 0 4px 4px 0; }
+  .mini-bar .seg.burn { background: var(--series-burn); }
+  .mini-bar .seg.recycle { background: var(--series-recycle); }
+  .mini-bar .seg.ghost { background: var(--ghost-fill); border: 1.5px dashed var(--text-muted); }
+  .group-head { margin-top: 14px; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); }
+
+  /* ---- ツールチップ ---- */
+  #tooltip {
+    position: fixed; z-index: 50; pointer-events: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.14);
+    padding: 8px 12px; font-size: 12px; display: none; max-width: 260px;
+  }
+  #tooltip .t-value { font-size: 14px; font-weight: 700; }
+  #tooltip .t-name { color: var(--text-secondary); }
+
+  /* ---- テーブル ---- */
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--text-secondary); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--baseline); }
+  td.good { color: var(--delta-good); font-weight: 600; }
+  td.bad  { color: var(--delta-bad);  font-weight: 600; }
+
+  /* ---- 手法ノート ---- */
+  .method p, .method li { font-size: 13px; color: var(--text-secondary); }
+  .method ul { padding-left: 1.4em; margin-top: 6px; }
+  .method h3 { font-size: 13.5px; margin-top: 14px; color: var(--text-primary); }
+  .method code { background: var(--page); border: 1px solid var(--grid); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>ゼロウェイスト政策シミュレーター（自治体汎用版）</h1>
+    <div class="sub" id="hdr-sub">「データ入力」タブに自治体の基準データを入力すると、可燃ごみ中の生ごみ・プラスチック・紙類の削減がリサイクル率・排出量・CO2・コストに与える効果を試算できます。</div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" id="tabbtn-input" class="active" role="tab">① データ入力</button>
+    <button type="button" id="tabbtn-sim" role="tab">② シミュレーション</button>
+    <button type="button" id="tabbtn-method" role="tab">③ 計算方法</button>
+  </nav>
+
+  <!-- ======== タブ①：データ入力 ======== -->
+  <section class="tab active" id="tab-input">
+
+    <div class="card">
+      <h2>データ管理</h2>
+      <div class="note">入力内容はこのブラウザに自動保存されます。JSONエクスポートでファイル化すれば、他の担当者・他のPCと共有できます。</div>
+      <div class="btn-row">
+        <button type="button" id="btn-sample">サンプル読込（横浜市・令和5年度）</button>
+        <button type="button" id="btn-blank">新規作成（テンプレート）</button>
+        <button type="button" id="btn-export">JSONエクスポート</button>
+        <label class="file-btn">JSONインポート<input type="file" id="file-import" accept=".json,application/json"></label>
+      </div>
+    </div>
+
+    <div id="input-form"></div>
+
+    <div class="warn-box" id="validate-box"></div>
+
+    <div class="btn-row" style="margin-top: 18px;">
+      <button type="button" class="primary" id="btn-gosim">② シミュレーションへ進む</button>
+    </div>
+  </section>
+
+  <!-- ======== タブ②：シミュレーション ======== -->
+  <section class="tab" id="tab-sim">
+
+    <div class="warn-box" id="sim-warn" style="display:none"></div>
+
+    <!-- KPIタイル -->
+    <div class="tiles" id="tiles"></div>
+
+    <!-- シナリオプリセット + スライダー -->
+    <div class="card">
+      <h2>削減シナリオ</h2>
+      <div class="note">発生抑制＝ごみそのものを出さない（食品ロス削減・リユース等）。分別・資源化＝可燃ごみから資源化ルートへ移行（生ごみ資源化・プラ分別回収・古紙回収等）。資源化率は発生抑制後の残量に対して適用されます。</div>
+      <div class="presets" id="presets"></div>
+      <div class="sliders-grid" id="sliders"></div>
+    </div>
+
+    <!-- 逆算モード -->
+    <div class="card">
+      <h2>逆算モード（目標から必要削減率を算出）</h2>
+      <div class="note">目標指標と目標値を指定すると、選択した対象成分に一律の削減率を適用した場合に必要な率を二分探索で求め、上のスライダーに自動反映します。反映後に個別調整も可能です。</div>
+      <div class="inv-row">
+        <span class="inv-label">目標指標</span>
+        <select id="inv-metric" aria-label="目標指標">
+          <option value="rate">リサイクル率（%）</option>
+          <option value="total">ごみ総排出量（万t/年）</option>
+          <option value="percap">1人1日当たり排出量（g/人・日）</option>
+        </select>
+        <span class="inv-label">目標値</span>
+        <input type="number" id="inv-target" value="30" step="0.1" aria-label="目標値">
+        <span id="inv-unit" class="inv-label"></span>
+      </div>
+      <div class="inv-row" id="inv-strategy" role="radiogroup" aria-label="戦略">
+        <span class="inv-label">戦略</span>
+        <label class="inv-check"><input type="radio" name="inv-strategy" value="both" checked>バランス（抑制＋資源化を同率）</label>
+        <label class="inv-check"><input type="radio" name="inv-strategy" value="div">資源化中心</label>
+        <label class="inv-check"><input type="radio" name="inv-strategy" value="prev">発生抑制中心</label>
+      </div>
+      <div class="inv-row" id="inv-fractions">
+        <span class="inv-label">対象成分</span>
+      </div>
+      <div class="inv-row">
+        <button type="button" class="primary" id="inv-run">必要削減率を計算してスライダーに反映</button>
+      </div>
+      <div id="inverse-result" role="status"></div>
+    </div>
+
+    <!-- チャート -->
+    <div class="card">
+      <h2>ごみ総排出量の処理内訳（現状 vs 試算）</h2>
+      <div class="legend">
+        <span class="key"><span class="swatch" style="background:var(--series-recycle)"></span>資源化</span>
+        <span class="key"><span class="swatch" style="background:var(--series-burn)"></span>焼却等（資源化以外の処理）</span>
+        <span class="key"><span class="swatch ghost"></span>発生抑制（削減分）</span>
+      </div>
+      <div id="chart-total"></div>
+      <div class="axis-note" id="chart-total-note"></div>
+    </div>
+
+    <div class="card">
+      <h2>成分別の行き先（可燃ごみ中の対象成分）</h2>
+      <div class="legend">
+        <span class="key"><span class="swatch" style="background:var(--series-burn)"></span>焼却のまま</span>
+        <span class="key"><span class="swatch" style="background:var(--series-recycle)"></span>資源化へ移行</span>
+        <span class="key"><span class="swatch ghost"></span>発生抑制</span>
+      </div>
+      <div id="chart-frac"></div>
+    </div>
+
+    <!-- 詳細テーブル -->
+    <div class="card">
+      <h2>詳細指標</h2>
+      <div id="detail-table"></div>
+    </div>
+  </section>
+
+  <!-- ======== タブ③：計算方法 ======== -->
+  <section class="tab" id="tab-method">
+    <div class="card method">
+      <h2>計算方法・前提条件</h2>
+      <h3>必要な入力データ</h3>
+      <ul>
+        <li>人口、生活系・事業系・その他（集団回収等）のごみ排出量、総資源化量、埋立最終処分量、生活系可燃ごみ量：自治体の「一般廃棄物処理実態調査（環境省）」調書や清掃事業概要から転記できます。</li>
+        <li>可燃ごみ組成（生活系・事業系それぞれの生ごみ・紙類・プラスチック類の湿重量%）：ごみ組成調査（ごみ質分析）結果から転記します。3成分の合計が100%以下であることを確認してください（残りは木竹・繊維・その他等）。</li>
+        <li>ごみ1t当たり処理経費：清掃事業概要等の「ごみ処理事業経費 ÷ 処理量」。</li>
+      </ul>
+      <h3>計算式</h3>
+      <ul>
+        <li>ごみ総排出量 = 生活系 + 事業系 + その他（入力から自動計算）。</li>
+        <li>各成分について:発生抑制量 = 基準量 × 抑制率、資源化移行量 = (基準量 − 発生抑制量) × 資源化率。基準量 = 生活系可燃ごみ量（または事業系ごみ量）× 組成割合。</li>
+        <li>総排出量' = 総排出量 − Σ発生抑制量。資源化量' = 資源化量 + Σ資源化移行量。リサイクル率' = 資源化量' ÷ 総排出量'。</li>
+        <li>焼却等処理量 = 総排出量 − 資源化量。焼却等処理量' = 焼却等処理量 − Σ発生抑制量 − Σ資源化移行量。</li>
+        <li>最終処分量' = 最終処分量 × (焼却等処理量' ÷ 焼却等処理量)（最終処分の大半が焼却残渣であるとの仮定）。</li>
+        <li>1人1日当たり排出量' = 総排出量' ÷ 人口 ÷ 365。</li>
+        <li>逆算モード：選択した対象成分すべてに一律の削減率を適用した場合の指標値は削減率に対して単調に変化するため、二分探索（60回反復・0.1%刻み切り上げ）で目標達成に必要な最小の一律削減率を求めます。</li>
+      </ul>
+      <h3>CO2排出削減（環境省の一般的係数を既定値に採用）</h3>
+      <ul>
+        <li>廃プラスチック焼却：2.77 t-CO2/t（環境省 温室効果ガス排出量算定係数。焼却を回避したプラ量＝発生抑制＋資源化移行に適用）。</li>
+        <li>生ごみ・紙・木竹・繊維等のバイオマス起源成分：燃焼由来CO2はカーボンニュートラルとして計上しない（IPCCガイドライン・温対法の扱い）。</li>
+        <li>収集運搬・中間処理由来:既定 0.03 t-CO2/t（概算値。発生抑制量に適用。変更可）。</li>
+        <li>オプション：焼却発電の減少分（発電原単位 kWh/t × 電力排出係数 t-CO2/kWh）を控除する設定も選択可（既定はOFF。焼却発電を行っていない自治体はOFFのまま）。</li>
+      </ul>
+      <h3>経済効果</h3>
+      <ul>
+        <li>財政効果 = 発生抑制量 × 処理単価 ＋ 資源化移行量 × (処理単価 − 資源化処理単価)。資源化処理単価は既定 35,000円/t（仮定値・変更可）。</li>
+        <li>参考値：食品ロス削減の市民・事業者便益 = 生活系生ごみ発生抑制量 × 食品ロス率（既定40%）× 食品価値（既定500円/kg）。行政コストとは別枠で表示。</li>
+      </ul>
+      <h3>留意事項</h3>
+      <ul>
+        <li>本ツールは政策検討用の簡易シミュレーションです。組成割合は調査年次・季節により変動します。</li>
+        <li>事業系ごみは全量が焼却系処理であると仮定しています。実態に合わせて組成割合側で調整してください。</li>
+        <li>資源化移行分は排出量に残ったまま資源化量に計上されます（リサイクル率の分子増）。発生抑制分は排出量自体が減少します。</li>
+        <li>入力データはこのブラウザのlocalStorageに保存されます。サーバーには送信されません。</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<div id="tooltip" role="status"></div>
+
+<script>
+"use strict";
+
+// ============================================================
+// データ定義
+// ============================================================
+const STORAGE_KEY = "zero-waste-sim-generic-v1";
+
+// 係数の既定値（自治体データが空でも保持する）
+const COEFF_DEFAULTS = {
+  costPerTon:        45000,
+  recycleCostPerTon: 35000,
+  plasticEF: 2.77,
+  collectEF: 0.03,
+  usePowerOffset: false,
+  genPerTon: 400,
+  gridEF: 0.000434,
+  foodLossShare: 40,
+  foodValuePerKg: 500,
+};
+
+// 空のテンプレート
+const BLANK = {
+  muniName: "", baseYear: "",
+  pop: 0, household: 0, business: 0, otherEmission: 0,
+  recycled: 0, landfill: 0, hhBurnable: 0,
+  hhFood: 0, hhPaper: 0, hhPlastic: 0,
+  bizFood: 0, bizPaper: 0, bizPlastic: 0,
+  ...COEFF_DEFAULTS,
+};
+
+// サンプル：横浜市 令和5年度
+const SAMPLE_YOKOHAMA = {
+  muniName: "横浜市", baseYear: "令和5年度",
+  pop: 3771766,
+  household: 651009, business: 340756, otherEmission: 128058,
+  recycled: 297483, landfill: 117035, hhBurnable: 500980,
+  hhFood: 33.9, hhPaper: 28.5, hhPlastic: 12.5,
+  bizFood: 51.1, bizPaper: 31.6, bizPlastic: 7.9,
+  ...COEFF_DEFAULTS,
+  costPerTon: 45711,
+};
+
+const INPUT_FIELDS = [
+  { group: "基本情報", note: "" },
+  { key: "muniName", label: "自治体名", type: "text" },
+  { key: "baseYear", label: "基準年度（例：令和5年度）", type: "text" },
+  { group: "人口・ごみ排出量（t/年）", note: "一般廃棄物処理実態調査（環境省）や清掃事業概要から転記してください。総排出量は自動計算されます。" },
+  { key: "pop",           label: "人口（人）", required: true },
+  { key: "household",     label: "生活系ごみ排出量（t/年）", required: true },
+  { key: "business",      label: "事業系ごみ排出量（t/年）" },
+  { key: "otherEmission", label: "その他排出量（集団回収等, t/年）" },
+  { key: "_total",        label: "ごみ総排出量（自動計算, t/年）", computed: true },
+  { key: "recycled",      label: "総資源化量（t/年）", required: true },
+  { key: "landfill",      label: "埋立最終処分量（t/年）" },
+  { key: "hhBurnable",    label: "生活系可燃ごみ（t/年）", required: true },
+  { group: "可燃ごみ組成（湿重量%）", note: "組成調査（ごみ質分析）結果から。生ごみ・紙・プラの3成分のみでOK（残りは木竹・繊維・その他等として自動的に対象外になります）。" },
+  { key: "hhFood",     label: "生活系：生ごみ（%）", step: 0.1, required: true },
+  { key: "hhPaper",    label: "生活系：紙類（%）", step: 0.1 },
+  { key: "hhPlastic",  label: "生活系：プラスチック類（%）", step: 0.1 },
+  { key: "bizFood",    label: "事業系：生ごみ（%）", step: 0.1 },
+  { key: "bizPaper",   label: "事業系：紙類（%）", step: 0.1 },
+  { key: "bizPlastic", label: "事業系：プラスチック類（%）", step: 0.1 },
+  { group: "処理コスト", note: "" },
+  { key: "costPerTon",        label: "ごみ1t当たり処理経費（円/t）", required: true },
+  { key: "recycleCostPerTon", label: "資源化処理単価（円/t・仮定値）" },
+  { group: "CO2係数（既定値は環境省の一般的係数）", note: "" },
+  { key: "plasticEF", label: "廃プラ焼却（t-CO2/t）", step: 0.01 },
+  { key: "collectEF", label: "収集運搬・中間処理（t-CO2/t）", step: 0.01 },
+  { key: "genPerTon", label: "ごみ発電原単位（kWh/t）" },
+  { key: "gridEF",    label: "電力排出係数（t-CO2/kWh）", step: 0.000001 },
+  { group: "食品ロス（参考値の計算用）", note: "" },
+  { key: "foodLossShare",  label: "生ごみ中の食品ロス率（%）", step: 1 },
+  { key: "foodValuePerKg", label: "食品価値（円/kg）", step: 10 },
+];
+
+const FRACTIONS = [
+  { id: "hhFood",     stream: "生活系", name: "生ごみ（厨芥類）", compKey: "hhFood",     baseKey: "hhBurnable" },
+  { id: "hhPaper",    stream: "生活系", name: "紙類",             compKey: "hhPaper",    baseKey: "hhBurnable" },
+  { id: "hhPlastic",  stream: "生活系", name: "プラスチック類",   compKey: "hhPlastic",  baseKey: "hhBurnable" },
+  { id: "bizFood",    stream: "事業系", name: "生ごみ",           compKey: "bizFood",    baseKey: "business" },
+  { id: "bizPaper",   stream: "事業系", name: "紙類",             compKey: "bizPaper",   baseKey: "business" },
+  { id: "bizPlastic", stream: "事業系", name: "プラスチック類",   compKey: "bizPlastic", baseKey: "business" },
+];
+
+const PRESETS = [
+  { name: "リセット", levers: {} },
+  { name: "控えめ（短期）",   levers: { hhFood:[10,10], hhPaper:[5,15],  hhPlastic:[10,20], bizFood:[10,10], bizPaper:[5,15],  bizPlastic:[10,20] } },
+  { name: "標準（中期）",     levers: { hhFood:[20,25], hhPaper:[10,30], hhPlastic:[15,40], bizFood:[20,25], bizPaper:[10,30], bizPlastic:[15,40] } },
+  { name: "野心的（ゼロウェイスト）", levers: { hhFood:[30,50], hhPaper:[20,50], hhPlastic:[25,60], bizFood:[30,50], bizPaper:[20,50], bizPlastic:[25,60] } },
+];
+
+let params = loadParams();
+let levers = Object.fromEntries(FRACTIONS.map(f => [f.id, { prev: 0, div: 0 }]));
+
+function loadParams() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      return { ...BLANK, ...pickKnown(saved) };
+    }
+  } catch { /* localStorage不可・破損時はサンプルで開始 */ }
+  return { ...SAMPLE_YOKOHAMA };
+}
+
+function pickKnown(obj) {
+  const out = {};
+  for (const k of Object.keys(BLANK)) if (k in obj) out[k] = obj[k];
+  return out;
+}
+
+function saveParams() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(params)); } catch { /* private mode等 */ }
+}
+
+function totalEmission() {
+  return (params.household || 0) + (params.business || 0) + (params.otherEmission || 0);
+}
+
+// ============================================================
+// 計算
+// ============================================================
+function compute(leverSet = levers) {
+  const p = params;
+  const total = totalEmission();
+  const burnBase = Math.max(0, total - p.recycled); // 焼却等（資源化以外の処理）基準量
+
+  let totPrev = 0, totDiv = 0;
+  let plasticAvoided = 0;
+  let hhFoodPrevented = 0;
+  const fracResults = [];
+
+  for (const f of FRACTIONS) {
+    const base = (p[f.baseKey] || 0) * (p[f.compKey] || 0) / 100;
+    const lv = leverSet[f.id];
+    const prevented = base * lv.prev / 100;
+    const diverted = (base - prevented) * lv.div / 100;
+    const remaining = base - prevented - diverted;
+    totPrev += prevented;
+    totDiv += diverted;
+    if (f.id === "hhPlastic" || f.id === "bizPlastic") plasticAvoided += prevented + diverted;
+    if (f.id === "hhFood") hhFoodPrevented = prevented;
+    fracResults.push({ ...f, base, prevented, diverted, remaining });
+  }
+
+  const total2 = total - totPrev;
+  const recycled2 = p.recycled + totDiv;
+  const burn2 = burnBase - totPrev - totDiv;
+  const landfill2 = burnBase > 0 ? p.landfill * burn2 / burnBase : p.landfill;
+
+  const safeDiv = (a, b) => (b > 0 ? a / b : 0);
+  const rateBase = safeDiv(p.recycled, total) * 100;
+  const rate2 = safeDiv(recycled2, total2) * 100;
+  const perCapBase = safeDiv(total * 1e6, p.pop * 365);
+  const perCap2 = safeDiv(total2 * 1e6, p.pop * 365);
+  const hhPerCapBase = safeDiv(p.household * 1e6, p.pop * 365);
+  const hhPerCap2 = safeDiv((p.household - fracResults.filter(f => f.baseKey === "hhBurnable")
+    .reduce((s, f) => s + f.prevented, 0)) * 1e6, p.pop * 365);
+
+  const co2Plastic = plasticAvoided * p.plasticEF;
+  const co2Collect = totPrev * p.collectEF;
+  const co2PowerLoss = p.usePowerOffset ? (burnBase - burn2) * p.genPerTon * p.gridEF : 0;
+  const co2Saved = co2Plastic + co2Collect - co2PowerLoss;
+
+  const fiscal = totPrev * p.costPerTon + totDiv * (p.costPerTon - p.recycleCostPerTon);
+  const foodLossValue = hhFoodPrevented * (p.foodLossShare / 100) * p.foodValuePerKg * 1000;
+
+  return {
+    total, burnBase, totPrev, totDiv, total2, recycled2, burn2, landfill2,
+    rateBase, rate2, perCapBase, perCap2, hhPerCapBase, hhPerCap2,
+    co2Plastic, co2Collect, co2PowerLoss, co2Saved,
+    fiscal, foodLossValue, fracResults,
+    burnRateBase: safeDiv(burnBase, total) * 100,
+    burnRate2: safeDiv(burn2, total2) * 100,
+    landfillRateBase: safeDiv(p.landfill, total) * 100,
+    landfillRate2: safeDiv(landfill2, total2) * 100,
+  };
+}
+
+// ============================================================
+// 表示ユーティリティ
+// ============================================================
+const fmt = {
+  int: n => Math.round(n).toLocaleString("ja-JP"),
+  manT: n => (n / 10000).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "万t",
+  pct: n => n.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%",
+  g: n => Math.round(n).toLocaleString("ja-JP") + " g",
+  okuYen: n => {
+    if (Math.abs(n) >= 1e8) return (n / 1e8).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "億円";
+    return (n / 1e4).toLocaleString("ja-JP", { maximumFractionDigits: 0 }) + "万円";
+  },
+  co2: n => {
+    if (Math.abs(n) >= 10000) return (n / 10000).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "万t-CO2";
+    return Math.round(n).toLocaleString("ja-JP") + " t-CO2";
+  },
+  co2Short: n => {
+    if (Math.abs(n) >= 10000) return (n / 10000).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "万t";
+    return Math.round(n).toLocaleString("ja-JP") + " t";
+  },
+};
+
+function fmtRate(v) {
+  return (Number.isInteger(v) ? v : v.toFixed(1)) + "%";
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// ---- ツールチップ ----
+const tooltip = document.getElementById("tooltip");
+function attachTooltip(node, getLines) {
+  node.addEventListener("pointermove", ev => {
+    tooltip.replaceChildren();
+    for (const [value, name] of getLines()) {
+      const row = el("div");
+      row.appendChild(el("span", "t-value", value));
+      row.appendChild(el("span", "t-name", "　" + name));
+      tooltip.appendChild(row);
+    }
+    tooltip.style.display = "block";
+    const pad = 14;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    const r = tooltip.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - pad;
+    tooltip.style.left = x + "px";
+    tooltip.style.top = y + "px";
+  });
+  node.addEventListener("pointerleave", () => { tooltip.style.display = "none"; });
+}
+
+// ============================================================
+// タブ
+// ============================================================
+const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"]];
+function showTab(name) {
+  for (const [n, btnId, secId] of TABS) {
+    document.getElementById(btnId).classList.toggle("active", n === name);
+    document.getElementById(secId).classList.toggle("active", n === name);
+  }
+  if (name === "sim") refreshSim();
+}
+for (const [n, btnId] of TABS) {
+  document.getElementById(btnId).addEventListener("click", () => showTab(n));
+}
+document.getElementById("btn-gosim").addEventListener("click", () => showTab("sim"));
+
+// ============================================================
+// データ入力タブ
+// ============================================================
+function buildInputForm() {
+  const wrap = document.getElementById("input-form");
+  wrap.replaceChildren();
+  let grid = null;
+  for (const field of INPUT_FIELDS) {
+    if (field.group) {
+      const card = el("div", "card");
+      card.appendChild(el("h2", null, field.group));
+      if (field.note) card.appendChild(el("div", "note", field.note));
+      grid = el("div", "settings-grid");
+      card.appendChild(grid);
+      wrap.appendChild(card);
+      continue;
+    }
+    const cell = el("div", "setting");
+    const id = "in-" + field.key;
+    const lb = el("label", null, field.label + (field.required ? " ＊" : ""));
+    lb.setAttribute("for", id);
+    const input = document.createElement("input");
+    input.id = id;
+    if (field.computed) {
+      input.type = "text"; input.readOnly = true; input.dataset.computed = field.key;
+    } else if (field.type === "text") {
+      input.type = "text";
+      input.value = params[field.key];
+      input.addEventListener("input", () => { params[field.key] = input.value; onParamsChanged(); });
+    } else {
+      input.type = "number";
+      input.step = field.step || 1;
+      input.min = 0;
+      input.value = params[field.key];
+      input.addEventListener("change", () => {
+        const v = Number(input.value);
+        if (Number.isFinite(v) && v >= 0) { params[field.key] = v; onParamsChanged(); }
+      });
+    }
+    cell.append(lb, input);
+    grid.appendChild(cell);
+  }
+
+  // 発電代替トグル（CO2係数カードの末尾に追加）
+  const cards = wrap.querySelectorAll(".card");
+  const co2Card = [...cards].find(c => c.querySelector("h2").textContent.startsWith("CO2係数"));
+  const check = el("label", "setting-check");
+  const cb = document.createElement("input");
+  cb.type = "checkbox"; cb.id = "in-usePowerOffset"; cb.checked = params.usePowerOffset;
+  cb.addEventListener("change", () => { params.usePowerOffset = cb.checked; onParamsChanged(); });
+  check.appendChild(cb);
+  check.appendChild(document.createTextNode("焼却発電の減少分をCO2削減量から控除する（焼却発電を行っている自治体のみON）"));
+  co2Card.appendChild(check);
+
+  refreshComputedFields();
+}
+
+function refreshInputForm() {
+  for (const field of INPUT_FIELDS) {
+    if (field.group || field.computed) continue;
+    const input = document.getElementById("in-" + field.key);
+    if (input) input.value = params[field.key];
+  }
+  const cb = document.getElementById("in-usePowerOffset");
+  if (cb) cb.checked = params.usePowerOffset;
+  refreshComputedFields();
+}
+
+function refreshComputedFields() {
+  const input = document.querySelector('[data-computed="_total"]');
+  if (input) input.value = fmt.int(totalEmission()) + " t（生活系＋事業系＋その他）";
+}
+
+function validateParams() {
+  const p = params;
+  const issues = [];
+  if (!p.pop) issues.push("人口が未入力です。1人1日当たり排出量が計算できません。");
+  if (!p.household) issues.push("生活系ごみ排出量が未入力です。");
+  if (!p.hhBurnable) issues.push("生活系可燃ごみ量が未入力です（削減シナリオの対象母数）。");
+  if (!p.recycled) issues.push("総資源化量が未入力です。リサイクル率が0%になります。");
+  if (!p.costPerTon) issues.push("処理経費（円/t）が未入力です。財政効果が0になります。");
+  if (!p.hhFood && !p.hhPaper && !p.hhPlastic && !p.bizFood && !p.bizPaper && !p.bizPlastic)
+    issues.push("組成割合がすべて0%です。少なくとも1成分を入力してください。");
+  if (p.hhBurnable > p.household && p.household > 0) issues.push("生活系可燃ごみが生活系排出量を上回っています。");
+  if (p.recycled > totalEmission() && totalEmission() > 0) issues.push("総資源化量が総排出量を上回っています。");
+  if (p.hhFood + p.hhPaper + p.hhPlastic > 100) issues.push("生活系組成（生ごみ＋紙＋プラ）が100%を超えています。");
+  if (p.bizFood + p.bizPaper + p.bizPlastic > 100) issues.push("事業系組成（生ごみ＋紙＋プラ）が100%を超えています。");
+  return issues;
+}
+
+function renderValidation() {
+  const box = document.getElementById("validate-box");
+  const issues = validateParams();
+  box.replaceChildren();
+  if (issues.length === 0) {
+    box.className = "warn-box ok";
+    box.textContent = "✅ 必須データが揃っています。「② シミュレーション」タブへ進んでください。";
+  } else {
+    box.className = "warn-box";
+    box.appendChild(el("div", null, "⚠️ 入力を確認してください："));
+    const ul = el("ul");
+    for (const issue of issues) ul.appendChild(el("li", null, issue));
+    box.appendChild(ul);
+  }
+  // シミュレーションタブ側の警告
+  const simWarn = document.getElementById("sim-warn");
+  if (issues.length > 0) {
+    simWarn.style.display = "block";
+    simWarn.textContent = "⚠️ 基準データが不足しています（" + issues.length + "件）。「① データ入力」タブで入力を完了してください。";
+  } else {
+    simWarn.style.display = "none";
+  }
+}
+
+function updateHeader() {
+  const hdr = document.getElementById("hdr-sub");
+  hdr.replaceChildren();
+  if (params.muniName || params.baseYear) {
+    const b = el("b", null, (params.muniName || "（自治体名未入力）") + (params.baseYear ? "・" + params.baseYear : ""));
+    hdr.appendChild(b);
+    hdr.appendChild(document.createTextNode(
+      "　人口 " + fmt.int(params.pop) + "人／ごみ総排出量 " + fmt.int(totalEmission()) +
+      " t／総資源化量 " + fmt.int(params.recycled) + " t"));
+  } else {
+    hdr.textContent = "「データ入力」タブに自治体の基準データを入力すると、可燃ごみ中の生ごみ・プラスチック・紙類の削減がリサイクル率・排出量・CO2・コストに与える効果を試算できます。";
+  }
+}
+
+function onParamsChanged() {
+  saveParams();
+  refreshComputedFields();
+  renderValidation();
+  updateHeader();
+}
+
+function refreshSim() {
+  buildSliders();
+  render();
+}
+
+// ---- データ管理ボタン ----
+function resetLevers() {
+  levers = Object.fromEntries(FRACTIONS.map(f => [f.id, { prev: 0, div: 0 }]));
+  clearActivePreset();
+  const box = document.getElementById("inverse-result");
+  box.style.display = "none";
+}
+document.getElementById("btn-sample").addEventListener("click", () => {
+  params = { ...SAMPLE_YOKOHAMA };
+  resetLevers(); refreshInputForm(); onParamsChanged();
+});
+document.getElementById("btn-blank").addEventListener("click", () => {
+  params = { ...BLANK };
+  resetLevers(); refreshInputForm(); onParamsChanged();
+});
+document.getElementById("btn-export").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(params, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "zero-waste-sim_" + (params.muniName || "data") + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById("file-import").addEventListener("change", ev => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      params = { ...BLANK, ...pickKnown(obj) };
+      resetLevers(); refreshInputForm(); onParamsChanged();
+    } catch {
+      alert("JSONの読み込みに失敗しました。エクスポートしたファイルを指定してください。");
+    }
+    ev.target.value = "";
+  };
+  reader.readAsText(file);
+});
+
+// ============================================================
+// シミュレーションタブ（スライダー・プリセット）
+// ============================================================
+function buildSliders() {
+  const wrap = document.getElementById("sliders");
+  wrap.replaceChildren();
+  for (const stream of ["生活系", "事業系"]) {
+    const col = el("div");
+    const baseTons = stream === "生活系" ? params.hhBurnable : params.business;
+    const head = el("div", "group-head",
+      (stream === "生活系" ? "生活系可燃ごみ（" : "事業系ごみ（") + fmt.manT(baseTons) + "）");
+    head.style.marginTop = "0";
+    col.appendChild(head);
+    for (const f of FRACTIONS.filter(f => f.stream === stream)) {
+      const base = (params[f.baseKey] || 0) * (params[f.compKey] || 0) / 100;
+      const frac = el("div", "frac");
+      const fh = el("div", "frac-head");
+      fh.appendChild(el("span", "frac-name", f.name));
+      fh.appendChild(el("span", "frac-base", "基準 " + fmt.int(base) + " t（" + params[f.compKey] + "%）"));
+      frac.appendChild(fh);
+      for (const [mode, label] of [["prev", "発生抑制"], ["div", "分別・資源化"]]) {
+        const row = el("div", "lever " + mode);
+        const lb = el("label", null, label);
+        const input = document.createElement("input");
+        input.type = "range"; input.min = 0; input.max = 100; input.step = 0.1;
+        input.value = levers[f.id][mode];
+        input.setAttribute("aria-label", stream + " " + f.name + " " + label + "率");
+        const out = el("output", null, fmtRate(levers[f.id][mode]));
+        input.addEventListener("input", () => {
+          levers[f.id][mode] = Number(input.value);
+          out.textContent = fmtRate(Number(input.value));
+          clearActivePreset();
+          render();
+        });
+        row.append(lb, input, out);
+        frac.appendChild(row);
+      }
+      col.appendChild(frac);
+    }
+    wrap.appendChild(col);
+  }
+}
+
+function buildPresets() {
+  const wrap = document.getElementById("presets");
+  wrap.replaceChildren();
+  for (const preset of PRESETS) {
+    const btn = el("button", null, preset.name);
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      for (const f of FRACTIONS) {
+        const v = preset.levers[f.id] || [0, 0];
+        levers[f.id] = { prev: v[0], div: v[1] };
+      }
+      buildSliders();
+      wrap.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      render();
+    });
+    wrap.appendChild(btn);
+  }
+}
+function clearActivePreset() {
+  document.querySelectorAll("#presets button").forEach(b => b.classList.remove("active"));
+}
+
+// ============================================================
+// 描画
+// ============================================================
+function tile(label, value, base, delta) {
+  const t = el("div", "tile");
+  t.appendChild(el("div", "label", label));
+  t.appendChild(el("div", "value", value));
+  if (base) t.appendChild(el("div", "base", base));
+  if (delta) t.appendChild(el("div", "delta " + delta.cls, delta.text));
+  return t;
+}
+
+function deltaOf(diff, unitFmt, goodWhenNegative) {
+  if (Math.abs(diff) < 1e-9) return { cls: "zero", text: "変化なし" };
+  const good = goodWhenNegative ? diff < 0 : diff > 0;
+  const sign = diff > 0 ? "+" : "−";
+  return { cls: good ? "good" : "bad", text: sign + unitFmt(Math.abs(diff)) };
+}
+
+function renderTiles(r) {
+  const tiles = document.getElementById("tiles");
+  tiles.replaceChildren();
+
+  tiles.appendChild(tile("リサイクル率", fmt.pct(r.rate2),
+    "現状 " + fmt.pct(r.rateBase),
+    deltaOf(r.rate2 - r.rateBase, n => n.toFixed(1) + "pt", false)));
+
+  tiles.appendChild(tile("ごみ総排出量", fmt.manT(r.total2),
+    "現状 " + fmt.manT(r.total),
+    deltaOf(r.total2 - r.total, fmt.manT, true)));
+
+  tiles.appendChild(tile("1人1日当たり排出量", fmt.g(r.perCap2),
+    "現状 " + fmt.g(r.perCapBase),
+    deltaOf(r.perCap2 - r.perCapBase, n => Math.round(n) + " g", true)));
+
+  tiles.appendChild(tile("CO2削減量（t-CO2/年）", fmt.co2Short(r.co2Saved),
+    "プラ焼却回避 " + fmt.co2(r.co2Plastic),
+    r.co2Saved > 0 ? { cls: "good", text: "削減" } : { cls: "zero", text: "変化なし" }));
+
+  tiles.appendChild(tile("財政効果（処理費削減）", fmt.okuYen(r.fiscal),
+    "処理単価 " + fmt.int(params.costPerTon) + "円/t",
+    r.fiscal > 0 ? { cls: "good", text: "年間コスト減" } : { cls: "zero", text: "変化なし" }));
+
+  tiles.appendChild(tile("食品ロス削減価値（参考）", fmt.okuYen(r.foodLossValue),
+    "生ごみ抑制 × 食品ロス率" + params.foodLossShare + "%",
+    r.foodLossValue > 0 ? { cls: "good", text: "市民・事業者便益" } : { cls: "zero", text: "変化なし" }));
+}
+
+function segDiv(cls, widthPct, labelText, tipLines) {
+  const seg = el("div", "seg " + cls);
+  seg.style.width = widthPct + "%";
+  if (labelText && widthPct > 13) seg.appendChild(el("span", "seg-label", labelText));
+  seg.tabIndex = 0;
+  attachTooltip(seg, () => tipLines);
+  return seg;
+}
+
+function renderTotalChart(r) {
+  const wrap = document.getElementById("chart-total");
+  wrap.replaceChildren();
+  const scale = r.total;
+  if (scale <= 0) {
+    document.getElementById("chart-total-note").textContent = "排出量データが未入力のため表示できません。";
+    return;
+  }
+
+  const row1 = el("div", "hbar-row");
+  row1.appendChild(el("div", "row-label", "現状"));
+  const bar1 = el("div", "hbar");
+  bar1.appendChild(segDiv("recycle", params.recycled / scale * 100, fmt.manT(params.recycled),
+    [[fmt.manT(params.recycled), "資源化（現状）"], [fmt.pct(r.rateBase), "リサイクル率"]]));
+  bar1.appendChild(segDiv("burn", r.burnBase / scale * 100, fmt.manT(r.burnBase),
+    [[fmt.manT(r.burnBase), "焼却等（現状）"]]));
+  row1.appendChild(bar1);
+  wrap.appendChild(row1);
+
+  const row2 = el("div", "hbar-row");
+  row2.appendChild(el("div", "row-label", "試算"));
+  const bar2 = el("div", "hbar");
+  bar2.appendChild(segDiv("recycle", r.recycled2 / scale * 100, fmt.manT(r.recycled2),
+    [[fmt.manT(r.recycled2), "資源化（試算）"], [fmt.pct(r.rate2), "リサイクル率"]]));
+  bar2.appendChild(segDiv("burn", r.burn2 / scale * 100, fmt.manT(r.burn2),
+    [[fmt.manT(r.burn2), "焼却等（試算）"]]));
+  if (r.totPrev > 0.5) {
+    bar2.appendChild(segDiv("ghost", r.totPrev / scale * 100, "−" + fmt.manT(r.totPrev),
+      [[fmt.manT(r.totPrev), "発生抑制（排出量の純減）"]]));
+  }
+  row2.appendChild(bar2);
+  wrap.appendChild(row2);
+
+  document.getElementById("chart-total-note").textContent =
+    "バーの全長 = 現状の総排出量 " + fmt.manT(r.total) +
+    "。試算行の点線部分は発生抑制により消滅した排出量。各セグメントにカーソルを合わせると値を表示します。";
+}
+
+function renderFracChart(r) {
+  const wrap = document.getElementById("chart-frac");
+  wrap.replaceChildren();
+  for (const stream of ["生活系", "事業系"]) {
+    wrap.appendChild(el("div", "group-head", stream));
+    for (const f of r.fracResults.filter(f => f.stream === stream)) {
+      const row = el("div", "mini-row");
+      const label = el("div", "mini-label");
+      const b = el("b", null, f.name);
+      label.appendChild(b);
+      label.appendChild(document.createTextNode(" " + fmt.int(f.base) + " t"));
+      row.appendChild(label);
+      const bar = el("div", "mini-bar");
+      if (f.base > 0) {
+        const mk = (cls, tons, name) => {
+          if (tons < f.base * 0.001) return;
+          bar.appendChild(segDiv(cls, tons / f.base * 100, null, [[fmt.int(tons) + " t", name]]));
+        };
+        mk("burn", f.remaining, f.name + "：焼却のまま");
+        mk("recycle", f.diverted, f.name + "：資源化へ移行");
+        mk("ghost", f.prevented, f.name + "：発生抑制");
+      }
+      row.appendChild(bar);
+      wrap.appendChild(row);
+    }
+  }
+}
+
+function renderTable(r) {
+  const wrap = document.getElementById("detail-table");
+  wrap.replaceChildren();
+  const table = el("table");
+  const thead = el("thead");
+  const hr = el("tr");
+  for (const h of ["指標", "現状", "試算", "差分"]) hr.appendChild(el("th", null, h));
+  thead.appendChild(hr);
+  table.appendChild(thead);
+  const tbody = el("tbody");
+
+  const rows = [
+    ["ごみ総排出量", fmt.int(r.total) + " t", fmt.int(r.total2) + " t", r.total2 - r.total, "t", true],
+    ["　うち発生抑制による削減", "—", "−" + fmt.int(r.totPrev) + " t", null],
+    ["　うち資源化への移行", "—", fmt.int(r.totDiv) + " t", null],
+    ["総資源化量", fmt.int(params.recycled) + " t", fmt.int(r.recycled2) + " t", r.recycled2 - params.recycled, "t", false],
+    ["リサイクル率", fmt.pct(r.rateBase), fmt.pct(r.rate2), r.rate2 - r.rateBase, "pt", false],
+    ["焼却等処理量（資源化以外）", fmt.int(r.burnBase) + " t", fmt.int(r.burn2) + " t", r.burn2 - r.burnBase, "t", true],
+    ["焼却等処理率", fmt.pct(r.burnRateBase), fmt.pct(r.burnRate2), r.burnRate2 - r.burnRateBase, "pt", true],
+    ["埋立最終処分量（推計）", fmt.int(params.landfill) + " t", fmt.int(r.landfill2) + " t", r.landfill2 - params.landfill, "t", true],
+    ["最終処分率", fmt.pct(r.landfillRateBase), fmt.pct(r.landfillRate2), r.landfillRate2 - r.landfillRateBase, "pt", true],
+    ["1人1日当たり排出量（総量）", fmt.g(r.perCapBase), fmt.g(r.perCap2), r.perCap2 - r.perCapBase, "g", true],
+    ["1人1日当たり排出量（生活系）", fmt.g(r.hhPerCapBase), fmt.g(r.hhPerCap2), r.hhPerCap2 - r.hhPerCapBase, "g", true],
+    ["CO2削減量（年間）", "—", fmt.co2(r.co2Saved), null],
+    ["　うちプラ焼却回避", "—", fmt.co2(r.co2Plastic), null],
+    ["　うち収集運搬・処理回避", "—", fmt.co2(r.co2Collect), null],
+    ...(params.usePowerOffset ? [["　うち焼却発電減少（控除）", "—", "−" + fmt.co2(r.co2PowerLoss), null]] : []),
+    ["財政効果（処理費削減・年間）", "—", fmt.okuYen(r.fiscal), null],
+    ["食品ロス削減価値（参考・年間）", "—", fmt.okuYen(r.foodLossValue), null],
+  ];
+
+  for (const [name, base, sim, diff, unit, goodNeg] of rows) {
+    const tr = el("tr");
+    tr.appendChild(el("td", null, name));
+    tr.appendChild(el("td", null, base));
+    tr.appendChild(el("td", null, sim));
+    if (diff == null) {
+      tr.appendChild(el("td", null, "—"));
+    } else {
+      const good = goodNeg ? diff < 0 : diff > 0;
+      const cls = Math.abs(diff) < 1e-9 ? "" : (good ? "good" : "bad");
+      let text;
+      if (Math.abs(diff) < 1e-9) text = "±0";
+      else if (unit === "t") text = (diff > 0 ? "+" : "−") + fmt.int(Math.abs(diff)) + " t";
+      else if (unit === "pt") text = (diff > 0 ? "+" : "−") + Math.abs(diff).toFixed(1) + " pt";
+      else text = (diff > 0 ? "+" : "−") + Math.round(Math.abs(diff)) + " g";
+      tr.appendChild(el("td", cls, text));
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+}
+
+function render() {
+  const r = compute();
+  renderTiles(r);
+  renderTotalChart(r);
+  renderFracChart(r);
+  renderTable(r);
+}
+
+// ============================================================
+// 逆算モード
+// ============================================================
+const INV_METRICS = {
+  rate:   { unit: "%（現状値より上を指定）", default: 30,  higherIsGoal: true,
+            value: r => r.rate2,   fmt: v => fmt.pct(v) },
+  total:  { unit: "万t/年（現状値より下を指定）", default: 100, higherIsGoal: false,
+            value: r => r.total2 / 10000, fmt: v => v.toFixed(1) + "万t" },
+  percap: { unit: "g/人・日（現状値より下を指定）", default: 750, higherIsGoal: false,
+            value: r => r.perCap2, fmt: v => Math.round(v) + " g" },
+};
+
+function buildInverse() {
+  const fwrap = document.getElementById("inv-fractions");
+  for (const f of FRACTIONS) {
+    const label = el("label", "inv-check");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = true; cb.dataset.frac = f.id;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(f.stream + "・" + f.name));
+    fwrap.appendChild(label);
+  }
+  const metricSel = document.getElementById("inv-metric");
+  const targetInput = document.getElementById("inv-target");
+  const unitSpan = document.getElementById("inv-unit");
+  const syncUnit = () => {
+    const m = INV_METRICS[metricSel.value];
+    unitSpan.textContent = m.unit;
+    targetInput.value = m.default;
+  };
+  metricSel.addEventListener("change", syncUnit);
+  syncUnit();
+  document.getElementById("inv-run").addEventListener("click", runInverse);
+}
+
+function inverseLevers(m, strategy, selected) {
+  const lv = {};
+  for (const f of FRACTIONS) {
+    const on = selected.has(f.id);
+    lv[f.id] = {
+      prev: on && (strategy === "prev" || strategy === "both") ? m : 0,
+      div:  on && (strategy === "div"  || strategy === "both") ? m : 0,
+    };
+  }
+  return lv;
+}
+
+function runInverse() {
+  const box = document.getElementById("inverse-result");
+  const showResult = (text, warn) => {
+    box.textContent = "";
+    box.insertAdjacentHTML("afterbegin", text);
+    box.className = warn ? "warn" : "";
+    box.style.display = "block";
+  };
+
+  const metricKey = document.getElementById("inv-metric").value;
+  const metric = INV_METRICS[metricKey];
+  const rawTarget = Number(document.getElementById("inv-target").value);
+  if (!Number.isFinite(rawTarget)) { showResult("目標値を入力してください。", true); return; }
+  const strategy = document.querySelector('input[name="inv-strategy"]:checked').value;
+  const selected = new Set([...document.querySelectorAll('#inv-fractions input:checked')].map(cb => cb.dataset.frac));
+  if (selected.size === 0) { showResult("対象成分を1つ以上選択してください。", true); return; }
+
+  const valueAt = m => metric.value(compute(inverseLevers(m, strategy, selected)));
+  const meets = v => metric.higherIsGoal ? v >= rawTarget - 1e-9 : v <= rawTarget + 1e-9;
+
+  const v0 = valueAt(0), v100 = valueAt(100);
+  if (meets(v0)) {
+    showResult("現状（<b>" + metric.fmt(v0) + "</b>）で既に目標を満たしています。削減率は0%のままです。", false);
+    return;
+  }
+  if (!meets(v100)) {
+    showResult("この戦略・対象成分では削減率100%でも目標に到達できません（最大到達値：<b>" + metric.fmt(v100) +
+      "</b>）。対象成分を増やす、または戦略を「バランス」に変更してください。", true);
+    return;
+  }
+
+  let lo = 0, hi = 100;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (meets(valueAt(mid))) hi = mid; else lo = mid;
+  }
+  const m = Math.min(100, Math.ceil(hi * 10) / 10); // 0.1%刻みで切り上げ
+
+  levers = inverseLevers(m, strategy, selected);
+  clearActivePreset();
+  buildSliders();
+  render();
+  const r = compute();
+
+  const strategyText = { both: "発生抑制 " + m.toFixed(1) + "%＋分別・資源化 " + m.toFixed(1) + "%",
+                         div: "分別・資源化 " + m.toFixed(1) + "%",
+                         prev: "発生抑制 " + m.toFixed(1) + "%" }[strategy];
+  showResult(
+    "対象成分（" + selected.size + "成分）にそれぞれ一律 <b>" + strategyText + "</b> を適用すると目標を達成します。" +
+    "<br>到達値：リサイクル率 <b>" + fmt.pct(r.rate2) + "</b>／総排出量 <b>" + fmt.manT(r.total2) +
+    "</b>／1人1日 <b>" + fmt.g(r.perCap2) + "</b>／CO2削減 <b>" + fmt.co2(r.co2Saved) +
+    "</b>／財政効果 <b>" + fmt.okuYen(r.fiscal) + "</b>。スライダーに反映済みです（個別調整できます）。",
+    false);
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+buildInputForm();
+buildPresets();
+buildSliders();
+buildInverse();
+renderValidation();
+updateHeader();
+render();
+</script>
+</body>
+</html>
