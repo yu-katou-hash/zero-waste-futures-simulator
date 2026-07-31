@@ -211,6 +211,18 @@
     font-size: 12px; line-height: 1.5; max-width: 260px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
   }
 
+  /* ---------- ranking ---------- */
+  .rank-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 6px 22px 16px;
+  }
+  #ranking-table tbody tr { cursor: pointer; }
+  #ranking-table tbody tr:hover td { background: var(--chip); }
+  #ranking-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #ranking-table tr.sel td { background: var(--accent-soft); font-weight: 600; }
+  .type-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .type-chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
   /* ---------- table ---------- */
   details.tbl {
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
@@ -383,6 +395,20 @@
     </div>
   </section>
 
+  <section aria-labelledby="h-ranking">
+    <h2 id="h-ranking">区別ランキング（施策効果の比較）</h2>
+    <p class="section-note">
+      現在のシナリオ設定を18区それぞれに当てはめた比較です。「循環堆肥」は区内の供給と需要の小さい方＝実際に区内で回る量。
+      タイプは <b>バランス</b>（均衡参加率8〜30%・区内で需給が閉じうる）／<b>需要超過</b>（農地が豊富・近隣区からの受入ハブ向き）／
+      <b>供給超過</b>（農地が少ない・堆肥の送り出し側）の3分類。<b>行をクリックすると実施エリアが切り替わります。</b>
+    </p>
+    <div class="rank-card">
+      <div class="tbl-wrap" style="padding:0">
+        <table id="ranking-table" aria-label="区別ランキング"></table>
+      </div>
+    </div>
+  </section>
+
   <section>
     <details class="tbl">
       <summary>数表（すべての計算値を表示）</summary>
@@ -404,6 +430,7 @@
       <li>「実施区内の農地」は、現在の市内農地2,850ha・農家3,451戸を、2010年農林業センサスの区別構成比（経営耕地面積・農家数）で按分して推計。畑等＝畑＋樹園地（田を除く）。区域区分の選択肢では畑率93%（市平均）を適用し、農家数は面積比で按分。「実施区内の農地」選択時は屋上ポテンシャル250haも区の人口比で按分（建物ストックの近似）</li>
       <li><code>CO2削減 = 堆肥t × 有効窒素kg/t × 肥料CO2係数 ＋ 生ごみt × 収集・焼却回避係数</code>。輸送はマイクロモビリティ（電動・近距離）のためゼロと近似</li>
       <li><code>マッチング件数 = min(拠点数, 受入農家数 × 農家あたり連携拠点数)</code></li>
+      <li>区別ランキング：<code>循環堆肥 = min(区内供給, 区内需要)</code>で順位付け。<code>均衡参加率 = 区内需要 ÷ 全世帯参加時の供給</code>。タイプは均衡参加率8%未満＝供給超過、8〜30%＝バランス、30%超＝需要超過</li>
       <li><code>経済循環 = (ごみ処理費削減 + 堆肥価値 + 肥料購入削減 + 屋上農園生産額) × 波及乗数</code></li>
     </ul>
 
@@ -719,6 +746,53 @@
     return r;
   }
 
+  // 区別ランキング：現在のシナリオを各区に適用（供給と需要の小さい方＝循環量で順位付け）
+  function computeWardRanking(s) {
+    var perHHCompost = BASE.kgPerHouseholdDay * 365 * (s.captureRate / 100) * (s.compostYield / 100) / 1000; // t堆肥/世帯・年
+    return WARDS.filter(function (w) { return w.id !== "all"; }).map(function (w) {
+      var hh = w.pop * HH_RATIO;
+      var supply = hh * (s.participation / 100) * perHHCompost;
+      var demand = wardFieldHa(w.id) * (s.farmerAccept / 100) * s.applicationRate * 10 +
+        BASE.rooftopPotentialHa * (w.pop / WARD_MAP.all.pop) * (s.rooftopAdoption / 100) * s.applicationRate * 10;
+      var circ = Math.min(supply, demand);
+      var waste = s.compostYield > 0 ? circ / (s.compostYield / 100) : 0;
+      var co2 = circ * s.compostN * s.fertCO2 / 1000 + waste * s.wasteCO2 / 1000;
+      var maxSupply = hh * perHHCompost;
+      var pStar = maxSupply > 0 ? demand / maxSupply * 100 : Infinity;
+      var type = pStar < 8 ? "供給超過" : (pStar <= 30 ? "バランス" : "需要超過");
+      return { id: w.id, name: w.name, circ: circ, waste: waste, co2: co2, pStar: pStar, type: type };
+    }).sort(function (a, b) { return b.circ - a.circ; });
+  }
+
+  function renderRanking() {
+    var rows = computeWardRanking(state);
+    var typeColor = { "バランス": "var(--accent)", "需要超過": "var(--series-2)", "供給超過": "var(--series-1)" };
+    var tbl = document.getElementById("ranking-table");
+    tbl.innerHTML = "<thead><tr><th>順位</th><th>区</th><th>タイプ</th>" +
+      "<th style='text-align:right'>循環堆肥 t/年</th><th style='text-align:right'>生ごみ削減 t/年</th>" +
+      "<th style='text-align:right'>CO2削減 t/年</th><th style='text-align:right'>均衡参加率</th></tr></thead>";
+    var tbody = document.createElement("tbody");
+    rows.forEach(function (row, i) {
+      var tr = document.createElement("tr");
+      tr.tabIndex = 0;
+      if (row.id === state.wardId) tr.className = "sel";
+      var pStarText = row.pStar > 100 ? "100%超" : fmt(row.pStar, 1) + "%";
+      tr.innerHTML = "<td>" + (i + 1) + "</td><td>" + row.name + "</td>" +
+        "<td><span class='type-chip'><i style='background:" + typeColor[row.type] + "'></i>" + row.type + "</span></td>" +
+        "<td class='n'>" + fmt(row.circ) + "</td><td class='n'>" + fmt(row.waste) + "</td>" +
+        "<td class='n'>" + fmt(row.co2, 1) + "</td><td class='n'>" + pStarText + "</td>";
+      function selectWard() {
+        state.wardId = row.id;
+        document.getElementById("in-ward").value = row.id;
+        render();
+      }
+      tr.addEventListener("click", selectWard);
+      tr.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectWard(); } });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+  }
+
   // ---------- 描画 ----------
   var tooltip = document.getElementById("tooltip");
   function attachTooltip(row, html) {
@@ -834,6 +908,9 @@
       { label: "化学肥料の購入削減", value: r.econFertilizer, color: s1, shareable: true },
       { label: "屋上農園の農産物生産", value: r.econRooftop, color: s1, shareable: true }
     ], yenFmt);
+
+    // 区別ランキング
+    renderRanking();
 
     // 数表
     var rows = [
