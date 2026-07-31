@@ -372,6 +372,15 @@
         <div class="bars" id="chart-econ"></div>
       </div>
     </div>
+    <div class="chart-card" style="margin-top:16px">
+      <h3>区別の農地面積（現在値の推計）</h3>
+      <p class="unit">ha ・ 現在の市内農地2,850haを2010年農林業センサスの区別構成比で按分（西区・中区・南区は非公表または皆無）</p>
+      <div class="legend">
+        <span><i style="background:var(--series-2)"></i>選択中の実施エリア</span>
+        <span><i style="background:var(--series-1)"></i>その他の区</span>
+      </div>
+      <div class="bars" id="chart-wards"></div>
+    </div>
   </section>
 
   <section>
@@ -391,7 +400,8 @@
       <li><code>生ごみ回収量 = 実施エリアの世帯数 × 参加率 × 0.259kg/世帯・日 × 365日 × 投入率</code>（0.259kg は生ごみ169,832t/年 ÷ 全市180万世帯から逆算。エリアの世帯数は区別人口 × 市平均の世帯構成比0.478で按分）</li>
       <li><code>生ごみ削減量 = 生ごみ回収量</code>（焼却からの分岐量）。全市削減率は家庭系生ごみ169,832t/年・生活系可燃ごみ500,980t/年それぞれに対して算出</li>
       <li><code>堆肥供給量 = 生ごみ回収量 × 堆肥転換率</code>（好気発酵で水分蒸発・分解により重量は約1/4に）</li>
-      <li><code>堆肥需要量 = (対象農地ha × 畑率93% × 受入農家割合 + 屋上農地ha) × 施用量(t/10a) × 10</code>。対象農地は「生産緑地280ha／市街化区域内500ha／＋農業専用地区1,570ha／全農地2,850ha」から選択（マイクロモビリティ配送圏の想定）。農家数は面積比で按分</li>
+      <li><code>堆肥需要量 = (対象農地の畑等ha × 受入農家割合 + 屋上農地ha) × 施用量(t/10a) × 10</code>。対象農地は「実施区内の農地／生産緑地280ha／市街化区域内500ha／＋農業専用地区1,570ha／全農地2,850ha」から選択（マイクロモビリティ配送圏の想定）</li>
+      <li>「実施区内の農地」は、現在の市内農地2,850ha・農家3,451戸を、2010年農林業センサスの区別構成比（経営耕地面積・農家数）で按分して推計。畑等＝畑＋樹園地（田を除く）。区域区分の選択肢では畑率93%（市平均）を適用し、農家数は面積比で按分。「実施区内の農地」選択時は屋上ポテンシャル250haも区の人口比で按分（建物ストックの近似）</li>
       <li><code>CO2削減 = 堆肥t × 有効窒素kg/t × 肥料CO2係数 ＋ 生ごみt × 収集・焼却回避係数</code>。輸送はマイクロモビリティ（電動・近距離）のためゼロと近似</li>
       <li><code>マッチング件数 = min(拠点数, 受入農家数 × 農家あたり連携拠点数)</code></li>
       <li><code>経済循環 = (ごみ処理費削減 + 堆肥価値 + 肥料購入削減 + 屋上農園生産額) × 波及乗数</code></li>
@@ -408,6 +418,7 @@
       <li>屋上緑化の全国累計施工面積 約538ha（2020年） — 国土交通省 屋上・壁面緑化施工実績調査</li>
       <li>スギ1本の年間CO2吸収量 約8.8kg — 林野庁資料</li>
       <li>区別人口 — 横浜市 推計人口（2025年）の概数。港北区358,935人・戸塚区280,375人・青葉区306,301人等で照合。世帯数は市平均の世帯構成比（約0.478世帯/人）で按分した概数</li>
+      <li>区別農家数・経営耕地面積（田・畑・樹園地） — 2010年農林業センサス（販売農家の経営耕地、ユーザー提供データ）。区別分布の構成比として使用し、絶対値は現在の市全体値（2,850ha・3,451戸）に合わせて按分</li>
     </ul>
 
     <div class="disclaimer">
@@ -465,6 +476,35 @@
   WARDS.forEach(function (w) { WARD_MAP[w.id] = w; });
   var HH_RATIO = BASE.households / WARD_MAP.all.pop; // ≈0.478 世帯/人
 
+  // 区別の農家数・経営耕地（2010年農林業センサス・販売農家ベース、単位a。ユーザー提供）
+  // fieldA = 畑 + 樹園地（堆肥施用の対象）。西区・中区・南区は非公表（X）または皆無のため0扱い
+  var WARD_AGRI = {
+    tsurumi:  { farms: 55,  landA: 3528,  fieldA: 1960 },
+    kanagawa: { farms: 197, landA: 14323, fieldA: 14307 },
+    nishi:    { farms: 0,   landA: 0,     fieldA: 0 },
+    naka:     { farms: 1,   landA: 0,     fieldA: 0 },
+    minami:   { farms: 11,  landA: 0,     fieldA: 0 },
+    hodogaya: { farms: 144, landA: 8143,  fieldA: 8120 },
+    isogo:    { farms: 36,  landA: 629,   fieldA: 609 },
+    kanazawa: { farms: 73,  landA: 1116,  fieldA: 1116 },
+    kohoku:   { farms: 448, landA: 16268, fieldA: 15506 },
+    totsuka:  { farms: 389, landA: 18178, fieldA: 16889 },
+    konan:    { farms: 90,  landA: 2988,  fieldA: 2840 },
+    asahi:    { farms: 379, landA: 12207, fieldA: 12207 },
+    midori:   { farms: 430, landA: 20071, fieldA: 17101 },
+    seya:     { farms: 262, landA: 19103, fieldA: 18450 },
+    sakae:    { farms: 151, landA: 3879,  fieldA: 3275 },
+    izumi:    { farms: 461, landA: 29105, fieldA: 26651 },
+    aoba:     { farms: 511, landA: 17773, fieldA: 13909 },
+    tsuzuki:  { farms: 564, landA: 22489, fieldA: 21410 }
+  };
+  var WARD_AGRI_TOTAL = { farms: 4202, landA: 189848, fieldA: 174350 };
+  WARD_AGRI.all = WARD_AGRI_TOTAL;
+  // 現在の市内農地2,850ha・農家3,451戸をセンサスの区別構成比で按分する
+  function wardFarmlandHa(id) { return BASE.farmlandHa * (WARD_AGRI[id] || WARD_AGRI_TOTAL).landA / WARD_AGRI_TOTAL.landA; }
+  function wardFieldHa(id) { return BASE.farmlandHa * (WARD_AGRI[id] || WARD_AGRI_TOTAL).fieldA / WARD_AGRI_TOTAL.landA; }
+  function wardFarmers(id) { return Math.round(BASE.farmers * (WARD_AGRI[id] || WARD_AGRI_TOTAL).farms / WARD_AGRI_TOTAL.farms); }
+
   // ---------- 可変パラメータ ----------
   var PARAMS = [
     { group: "citizen", id: "participation", label: "コンポスト参加世帯率", min: 0.1, max: 30, step: 0.1, def: 3, unit: "%" },
@@ -495,13 +535,14 @@
     all:      { label: "市内全農地", ha: 2850 }
   };
   var ZONE_OPTIONS = [
+    ["ward", "実施区内の農地（区別センサスから推計）"],
     ["seisan", "生産緑地のみ（約280ha・住宅至近）"],
     ["shigaika", "市街化区域内の農地（約500ha）"],
     ["senyo", "＋農業専用地区（約1,570ha）"],
     ["all", "市内全農地（2,850ha）"]
   ];
 
-  var state = { targetZone: "shigaika", wardId: "hodogaya" };
+  var state = { targetZone: "ward", wardId: "hodogaya" };
   PARAMS.forEach(function (p) { state[p.id] = p.def; });
 
   // ---------- ユーティリティ ----------
@@ -633,13 +674,25 @@
     r.shareCityBurnable = r.wasteReduced / BASE.burnableWaste;
     r.packerTrucks = Math.round(r.wasteReduced / 2); // 2tパッカー車換算
 
-    // 需要側（対象農地の区域区分で絞り込み、農家数は面積比で按分）
-    r.zone = ZONES[s.targetZone];
-    r.zoneHa = r.zone.ha;
-    r.fieldHa = r.zoneHa * BASE.fieldRatio;
-    r.zoneFarmers = Math.round(BASE.farmers * r.zoneHa / BASE.farmlandHa);
+    // 需要側（対象農地の絞り込み）
+    if (s.targetZone === "ward") {
+      // 実施区内の農地：区別センサスの構成比で現在の農地・農家を按分
+      r.zoneLabel = s.wardId === "all" ? "市内全農地" : "実施区（" + r.ward.name + "）内の農地";
+      r.zoneHa = wardFarmlandHa(s.wardId);
+      r.fieldHa = wardFieldHa(s.wardId);
+      r.zoneFarmers = wardFarmers(s.wardId);
+    } else {
+      // 区域区分（生産緑地・市街化区域内等）：農家数は面積比で按分
+      var zone = ZONES[s.targetZone];
+      r.zoneLabel = zone.label;
+      r.zoneHa = zone.ha;
+      r.fieldHa = r.zoneHa * BASE.fieldRatio;
+      r.zoneFarmers = Math.round(BASE.farmers * r.zoneHa / BASE.farmlandHa);
+    }
     r.acceptingFarmers = Math.round(r.zoneFarmers * s.farmerAccept / 100);
-    r.rooftopHa = BASE.rooftopPotentialHa * s.rooftopAdoption / 100;
+    // 屋上農地：区内モードでは屋上ポテンシャルも区の人口比で按分（建物ストックの近似）
+    var rooftopScale = s.targetZone === "ward" ? r.ward.pop / WARD_MAP.all.pop : 1;
+    r.rooftopHa = BASE.rooftopPotentialHa * rooftopScale * s.rooftopAdoption / 100;
     r.demandFarm = r.fieldHa * (s.farmerAccept / 100) * s.applicationRate * 10;  // t/年
     r.demandRooftop = r.rooftopHa * s.applicationRate * 10;                      // t/年
     r.demandTotal = r.demandFarm + r.demandRooftop;
@@ -759,7 +812,7 @@
 
     renderBars("chart-balance", [
       { label: "供給：市民コンポスト由来の堆肥", value: r.compostSupply, color: s1 },
-      { label: "需要：" + r.zone.label + "（受入 " + fmt(state.farmerAccept) + "%）", value: r.demandFarm, color: s2 },
+      { label: "需要：" + r.zoneLabel + "（受入 " + fmt(state.farmerAccept) + "%）", value: r.demandFarm, color: s2 },
       { label: "需要：屋上農地（" + fmt(r.rooftopHa, 1) + " ha）", value: r.demandRooftop, color: s2 }
     ], tFmt);
 
@@ -767,6 +820,13 @@
       { label: "化学肥料の代替（輸入削減）", value: r.co2Fertilizer, color: s1, shareable: true },
       { label: "生ごみの収集・焼却回避", value: r.co2Waste, color: s1, shareable: true }
     ], co2Fmt);
+
+    var wardRows = WARDS.filter(function (w) { return w.id !== "all"; })
+      .map(function (w) {
+        return { label: w.name, value: wardFarmlandHa(w.id), color: state.wardId === w.id ? s2 : s1 };
+      })
+      .sort(function (a, b) { return b.value - a.value; });
+    renderBars("chart-wards", wardRows, function (v) { return fmt(v) + " ha"; });
 
     renderBars("chart-econ", [
       { label: "ごみ処理費の削減", value: r.econDisposal, color: s1, shareable: true },
@@ -785,8 +845,8 @@
       ["", "堆肥供給量", fmt(r.compostSupply) + " t/年"],
       ["", "コンポスト拠点数", fmt(r.hubs) + " か所"],
       ["grp", "需要側", ""],
-      ["", "対象農地", r.zone.label + "（" + fmt(r.zoneHa) + " ha）"],
-      ["", "対象エリアの農家数（面積比で按分）", fmt(r.zoneFarmers) + " 戸"],
+      ["", "対象農地", r.zoneLabel + "（" + fmt(r.zoneHa) + " ha・うち畑等 " + fmt(r.fieldHa) + " ha）"],
+      ["", "対象エリアの農家数（按分推計）", fmt(r.zoneFarmers) + " 戸"],
       ["", "受入農家数", fmt(r.acceptingFarmers) + " 戸"],
       ["", "対象農地の堆肥需要", fmt(r.demandFarm) + " t/年"],
       ["", "屋上農地面積", fmt(r.rooftopHa, 1) + " ha"],
