@@ -271,6 +271,64 @@
   td.good { color: var(--delta-good); font-weight: 600; }
   td.bad  { color: var(--delta-bad);  font-weight: 600; }
 
+  /* ---- フォーカス・モーション ---- */
+  :focus-visible { outline: 2px solid var(--series-burn); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* ---- ステップガイド ---- */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 12px; }
+  .step { display: flex; gap: 10px; align-items: flex-start; }
+  .step .num {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--series-burn); color: #fff; font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step .t { font-size: 13px; }
+  .step .t b { display: block; font-size: 13.5px; }
+  .step .t span { color: var(--text-secondary); font-size: 12px; }
+
+  /* ---- 固定サマリーバー ---- */
+  #sticky-kpi {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    padding: 8px 16px;
+    display: none;
+  }
+  #sticky-kpi .inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; flex-wrap: wrap; gap: 4px 22px; align-items: baseline;
+  }
+  #sticky-kpi .k { font-size: 11px; color: var(--text-secondary); margin-right: 4px; }
+  #sticky-kpi .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #sticky-kpi .v.up { color: var(--delta-good); }
+
+  /* ---- 成分別ライブ表示 ---- */
+  .frac-result { font-size: 11.5px; color: var(--text-secondary); margin-top: 6px; }
+  .frac-result b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+  /* ---- テーブル横スクロール ---- */
+  #detail-table { overflow-x: auto; }
+  #detail-table table { min-width: 560px; }
+
+  /* ---- フッター ---- */
+  footer.foot {
+    margin-top: 28px; text-align: center;
+    color: var(--text-muted); font-size: 11.5px;
+    line-height: 1.8;
+  }
+
+  /* ---- 印刷 ---- */
+  @media print {
+    body { padding: 0; background: #fff; }
+    .tabs, .presets, .btn-row, #sticky-kpi, .lever input[type="range"], #tooltip, iframe { display: none !important; }
+    section.tab { display: block !important; }
+    .card { break-inside: avoid; box-shadow: none; }
+  }
+
   /* ---- 手法ノート ---- */
   .method p, .method li { font-size: 13px; color: var(--text-secondary); }
   .method ul { padding-left: 1.4em; margin-top: 6px; }
@@ -294,8 +352,21 @@
     <button type="button" id="tabbtn-picnic" role="tab">⑤ プラ削減×ピクニック（横浜）</button>
   </nav>
 
+  <div id="sticky-kpi" aria-hidden="true">
+    <div class="inner" id="sticky-kpi-inner"></div>
+  </div>
+
   <!-- ======== タブ①：データ入力 ======== -->
   <section class="tab active" id="tab-input">
+
+    <div class="card">
+      <h2>このツールの使い方</h2>
+      <div class="steps">
+        <div class="step"><div class="num">1</div><div class="t"><b>基準データを入力</b><span>環境省「一般廃棄物処理実態調査」の調書や清掃事業概要から転記します。まずは「サンプル読込」で動きを確認できます。</span></div></div>
+        <div class="step"><div class="num">2</div><div class="t"><b>シナリオを動かす</b><span>生ごみ・プラ・紙の削減率をスライダーで操作。目標値から必要削減率を求める「逆算モード」も使えます。</span></div></div>
+        <div class="step"><div class="num">3</div><div class="t"><b>結果を政策に</b><span>リサイクル率・排出量・CO2・財政効果を確認。計算根拠はすべて「③ 計算方法」タブに明記しています。</span></div></div>
+      </div>
+    </div>
 
     <div class="card">
       <h2>データ管理</h2>
@@ -345,7 +416,7 @@
           <option value="percap">1人1日当たり排出量（g/人・日）</option>
         </select>
         <span class="inv-label">目標値</span>
-        <input type="number" id="inv-target" value="30" step="0.1" aria-label="目標値">
+        <input type="number" id="inv-target" value="30" step="0.1" inputmode="decimal" aria-label="目標値">
         <span id="inv-unit" class="inv-label"></span>
       </div>
       <div class="inv-row" id="inv-strategy" role="radiogroup" aria-label="戦略">
@@ -463,6 +534,8 @@
     <iframe id="picnic-frame" src="picnic.html" title="Less Plastic, More Picnic 横浜市インパクトシミュレーター" loading="lazy"
       style="width:100%; border:none; min-height:600px; display:block;"></iframe>
   </section>
+
+  <footer class="foot">ゼロウェイスト政策シミュレーター（自治体汎用版）<br>入力データはこのブラウザ内にのみ保存され、サーバーには送信されません。計算根拠は「③ 計算方法」タブをご覧ください。</footer>
 
 </div>
 
@@ -702,20 +775,42 @@ function attachTooltip(node, getLines) {
     tooltip.style.top = y + "px";
   });
   node.addEventListener("pointerleave", () => { tooltip.style.display = "none"; });
+  // キーボードフォーカスでも同じ情報を表示（アクセシビリティ）
+  node.addEventListener("focus", () => {
+    tooltip.replaceChildren();
+    for (const [value, name] of getLines()) {
+      const row = el("div");
+      row.appendChild(el("span", "t-value", value));
+      row.appendChild(el("span", "t-name", "　" + name));
+      tooltip.appendChild(row);
+    }
+    const rect = node.getBoundingClientRect();
+    tooltip.style.display = "block";
+    tooltip.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 270)) + "px";
+    tooltip.style.top = (rect.bottom + 8) + "px";
+  });
+  node.addEventListener("blur", () => { tooltip.style.display = "none"; });
 }
 
 // ============================================================
 // タブ
 // ============================================================
 const TABS = [["input", "tabbtn-input", "tab-input"], ["sim", "tabbtn-sim", "tab-sim"], ["method", "tabbtn-method", "tab-method"], ["compost", "tabbtn-compost", "tab-compost"], ["picnic", "tabbtn-picnic", "tab-picnic"]];
+let currentTab = "input";
+let tilesVisible = true;
 function showTab(name) {
   for (const [n, btnId, secId] of TABS) {
-    document.getElementById(btnId).classList.toggle("active", n === name);
+    const btn = document.getElementById(btnId);
+    btn.classList.toggle("active", n === name);
+    btn.setAttribute("aria-selected", n === name ? "true" : "false");
     document.getElementById(secId).classList.toggle("active", n === name);
   }
+  currentTab = name;
   if (name === "sim") refreshSim();
   if (name === "compost") fitFrame("compost-frame");
   if (name === "picnic") fitFrame("picnic-frame");
+  updateStickyVisibility();
+  window.scrollTo({ top: 0 });
 }
 
 // 埋め込みタブ：同一オリジンのiframeを内容の高さに合わせる
@@ -776,6 +871,7 @@ function buildInputForm() {
       input.type = "number";
       input.step = field.step || 1;
       input.min = 0;
+      input.inputMode = "decimal";
       input.value = params[field.key];
       input.addEventListener("change", () => {
         const v = Number(input.value);
@@ -847,6 +943,9 @@ function renderValidation() {
     for (const issue of issues) ul.appendChild(el("li", null, issue));
     box.appendChild(ul);
   }
+  // タブ①に入力状態バッジを表示
+  document.getElementById("tabbtn-input").textContent =
+    issues.length === 0 ? "① データ入力 ✓" : "① データ入力（要確認 " + issues.length + "）";
   // シミュレーションタブ側の警告
   const simWarn = document.getElementById("sim-warn");
   if (issues.length > 0) {
@@ -960,6 +1059,9 @@ function buildSliders() {
         row.append(lb, input, out);
         frac.appendChild(row);
       }
+      const res = el("div", "frac-result");
+      res.id = "frac-result-" + f.id;
+      frac.appendChild(res);
       col.appendChild(frac);
     }
     wrap.appendChild(col);
@@ -1004,8 +1106,8 @@ function tile(label, value, base, delta) {
 function deltaOf(diff, unitFmt, goodWhenNegative) {
   if (Math.abs(diff) < 1e-9) return { cls: "zero", text: "変化なし" };
   const good = goodWhenNegative ? diff < 0 : diff > 0;
-  const sign = diff > 0 ? "+" : "−";
-  return { cls: good ? "good" : "bad", text: sign + unitFmt(Math.abs(diff)) };
+  const arrow = diff > 0 ? "▲ +" : "▼ −";
+  return { cls: good ? "good" : "bad", text: arrow + unitFmt(Math.abs(diff)) };
 }
 
 function renderTiles(r) {
@@ -1172,6 +1274,44 @@ function render() {
   renderTotalChart(r);
   renderFracChart(r);
   renderTable(r);
+  updateFracReadouts(r);
+  updateSticky(r);
+}
+
+// 成分別スライダー直下のライブ表示
+function updateFracReadouts(r) {
+  for (const f of r.fracResults) {
+    const node = document.getElementById("frac-result-" + f.id);
+    if (!node) continue;
+    node.replaceChildren();
+    node.appendChild(document.createTextNode("焼却回避 "));
+    node.appendChild(el("b", null, fmt.int(f.prevented + f.diverted) + " t"));
+    node.appendChild(document.createTextNode(
+      "（抑制 " + fmt.int(f.prevented) + " t＋資源化 " + fmt.int(f.diverted) + " t）／ 焼却残 " + fmt.int(f.remaining) + " t"));
+  }
+}
+
+// 固定サマリーバー
+function updateStickyVisibility() {
+  const bar = document.getElementById("sticky-kpi");
+  const show = currentTab === "sim" && !tilesVisible;
+  bar.style.display = show ? "block" : "none";
+  bar.setAttribute("aria-hidden", show ? "false" : "true");
+}
+function updateSticky(r) {
+  const inner = document.getElementById("sticky-kpi-inner");
+  inner.replaceChildren();
+  const item = (k, v, up) => {
+    const s = el("span");
+    s.appendChild(el("span", "k", k));
+    s.appendChild(el("span", "v" + (up ? " up" : ""), v));
+    inner.appendChild(s);
+  };
+  item("リサイクル率", fmt.pct(r.rate2) + "（現状 " + fmt.pct(r.rateBase) + "）", r.rate2 > r.rateBase + 1e-9);
+  item("総排出量", fmt.manT(r.total2), false);
+  item("1人1日", fmt.g(r.perCap2), false);
+  item("CO2削減", fmt.co2(r.co2Saved), r.co2Saved > 0);
+  item("財政効果", fmt.okuYen(r.fiscal), r.fiscal > 0);
 }
 
 // ============================================================
@@ -1286,6 +1426,12 @@ buildInverse();
 renderValidation();
 updateHeader();
 render();
+showTab("input");
+// KPIタイルが画面外に出たら固定サマリーバーを表示
+new IntersectionObserver(entries => {
+  tilesVisible = entries[0].isIntersecting;
+  updateStickyVisibility();
+}, { rootMargin: "-8px 0px 0px 0px" }).observe(document.getElementById("tiles"));
 </script>
 </body>
 </html>
