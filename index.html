@@ -444,7 +444,7 @@
     <!-- シナリオプリセット + スライダー -->
     <div class="card">
       <h2>削減シナリオ</h2>
-      <div class="note">発生抑制＝ごみそのものを出さない（食品ロス削減・リユース等）。分別・資源化＝可燃ごみから資源化ルートへ移行（生ごみ資源化・プラ分別回収・古紙回収等）。資源化率は発生抑制後の残量に対して適用されます。</div>
+      <div class="note">発生抑制＝ごみそのものを出さない（食品ロス削減・リユース等）。同じ素材の資源回収量も同率で減少します（連動の設定はデータ入力タブ）。分別・資源化＝可燃ごみから資源化ルートへ移行（生ごみ資源化・プラ分別回収・古紙回収等）。資源化率は発生抑制後の残量に対して適用されます。</div>
       <div class="presets" id="presets"></div>
       <div class="sliders-grid" id="sliders"></div>
     </div>
@@ -522,7 +522,9 @@
       <ul>
         <li>ごみ総排出量 = 生活系 + 事業系 + その他（入力から自動計算）。</li>
         <li>各成分について:発生抑制量 = 基準量 × 抑制率、資源化移行量 = (基準量 − 発生抑制量) × 資源化率。基準量 = 生活系可燃ごみ量（または事業系ごみ量）× 組成割合。</li>
-        <li>総排出量' = 総排出量 − Σ発生抑制量。資源化量' = 資源化量 + Σ資源化移行量。リサイクル率' = 資源化量' ÷ 総排出量'。</li>
+        <li>発生抑制の資源回収分への連動：発生抑制はごみの発生そのものの削減であるため、材料別（生ごみ・紙・プラ）の加重平均抑制率と同じ割合で、すでに資源回収されている同素材の量（データ入力の「資源回収量の成分内訳」）も減少させます。資源回収連動削減 = 資源回収量 × 加重平均抑制率。内訳を0のままにすると連動は働きません（可燃分のみの削減）。</li>
+        <li>総排出量' = 総排出量 − Σ発生抑制量（可燃分） − Σ資源回収連動削減。資源化量' = 資源化量 + Σ資源化移行量 − Σ資源回収連動削減。リサイクル率' = 資源化量' ÷ 総排出量'。</li>
+        <li><b>重要：</b>この連動により、古紙のようにすでに高い割合でリサイクルされている素材の発生抑制は、全体のリサイクル率を<b>下げる</b>ことがあります（分子・分母が同時に減るため）。これはリサイクル率という指標の構造によるもので、発生抑制の効果自体は総排出量・焼却量・CO2・コストで評価してください。廃棄物政策の優先順位（リデュース＞リユース＞リサイクル）では発生抑制が最上位です。</li>
         <li>焼却等処理量 = 総排出量 − 資源化量。焼却等処理量' = 焼却等処理量 − Σ発生抑制量 − Σ資源化移行量。</li>
         <li>最終処分量' = 最終処分量 × (焼却等処理量' ÷ 焼却等処理量)（最終処分の大半が焼却残渣であるとの仮定）。</li>
         <li>1人1日当たり排出量' = 総排出量' ÷ 人口 ÷ 365。</li>
@@ -614,10 +616,12 @@ const BLANK = {
   recycled: 0, landfill: 0, hhBurnable: 0,
   hhFood: 0, hhPaper: 0, hhPlastic: 0,
   bizFood: 0, bizPaper: 0, bizPlastic: 0,
+  recFood: 0, recPaper: 0, recPlastic: 0,
   ...COEFF_DEFAULTS,
 };
 
 // サンプル：横浜市 令和5年度
+// recFood/recPaper/recPlastic は資源ごみ・集団回収・事業系資源化の構成からの推計値
 const SAMPLE_YOKOHAMA = {
   muniName: "横浜市", baseYear: "令和5年度",
   pop: 3771766,
@@ -625,6 +629,7 @@ const SAMPLE_YOKOHAMA = {
   recycled: 297483, landfill: 117035, hhBurnable: 500980,
   hhFood: 33.9, hhPaper: 28.5, hhPlastic: 12.5,
   bizFood: 51.1, bizPaper: 31.6, bizPlastic: 7.9,
+  recFood: 5000, recPaper: 150000, recPlastic: 15000,
   ...COEFF_DEFAULTS,
   costPerTon: 45711,
 };
@@ -649,6 +654,10 @@ const INPUT_FIELDS = [
   { key: "bizFood",    label: "事業系：生ごみ（%）", step: 0.1 },
   { key: "bizPaper",   label: "事業系：紙類（%）", step: 0.1 },
   { key: "bizPlastic", label: "事業系：プラスチック類（%）", step: 0.1 },
+  { group: "資源回収量の成分内訳（発生抑制の連動計算用）", note: "すでに資源化されている量のうち、生ごみ・古紙・プラそれぞれの回収量。発生抑制はごみの発生そのものを減らすため、可燃ごみ中の対象成分と同じ割合でこれらの資源回収量も減少します（0のままなら連動なし＝可燃分のみの削減として計算）。" },
+  { key: "recFood",    label: "生ごみ資源化量（t/年）" },
+  { key: "recPaper",   label: "古紙回収量（t/年）" },
+  { key: "recPlastic", label: "プラ資源回収量（t/年）" },
   { group: "処理コスト", note: "" },
   { key: "costPerTon",        label: "ごみ1t当たり処理経費（円/t）", required: true },
   { key: "recycleCostPerTon", label: "資源化処理単価（円/t・仮定値）" },
@@ -732,8 +741,27 @@ function compute(leverSet = levers) {
     fracResults.push({ ...f, base, prevented, diverted, remaining });
   }
 
-  const total2 = total - totPrev;
-  const recycled2 = p.recycled + totDiv;
+  // 発生抑制の資源回収分への連動：
+  // 発生抑制はごみの発生そのものの削減なので、材料別の加重平均抑制率と
+  // 同じ割合で、すでに資源回収されている同素材の量も減少させる
+  const MATERIALS = [
+    { name: "生ごみ", ids: ["hhFood", "bizFood"], recKey: "recFood" },
+    { name: "紙類", ids: ["hhPaper", "bizPaper"], recKey: "recPaper" },
+    { name: "プラスチック類", ids: ["hhPlastic", "bizPlastic"], recKey: "recPlastic" },
+  ];
+  let recPrevTotal = 0;
+  const recPrevByMaterial = [];
+  for (const m of MATERIALS) {
+    const parts = fracResults.filter(f => m.ids.includes(f.id));
+    const baseSum = parts.reduce((s, f) => s + f.base, 0);
+    const rate = baseSum > 0 ? parts.reduce((s, f) => s + f.prevented, 0) / baseSum : 0;
+    const recPrev = (p[m.recKey] || 0) * rate;
+    recPrevTotal += recPrev;
+    recPrevByMaterial.push({ name: m.name, recBase: p[m.recKey] || 0, rate, recPrev });
+  }
+
+  const total2 = total - totPrev - recPrevTotal;
+  const recycled2 = p.recycled + totDiv - recPrevTotal;
   const burn2 = burnBase - totPrev - totDiv;
   const landfill2 = burnBase > 0 ? p.landfill * burn2 / burnBase : p.landfill;
 
@@ -747,15 +775,17 @@ function compute(leverSet = levers) {
     .reduce((s, f) => s + f.prevented, 0)) * 1e6, p.pop * 365);
 
   const co2Plastic = plasticAvoided * p.plasticEF;
-  const co2Collect = totPrev * p.collectEF;
+  const co2Collect = (totPrev + recPrevTotal) * p.collectEF;
   const co2PowerLoss = p.usePowerOffset ? (burnBase - burn2) * p.genPerTon * p.gridEF : 0;
   const co2Saved = co2Plastic + co2Collect - co2PowerLoss;
 
-  const fiscal = totPrev * p.costPerTon + totDiv * (p.costPerTon - p.recycleCostPerTon);
+  // 資源回収の連動削減分は資源化処理費が不要になる
+  const fiscal = totPrev * p.costPerTon + totDiv * (p.costPerTon - p.recycleCostPerTon)
+    + recPrevTotal * p.recycleCostPerTon;
   const foodLossValue = hhFoodPrevented * (p.foodLossShare / 100) * p.foodValuePerKg * 1000;
 
   return {
-    total, burnBase, totPrev, totDiv, total2, recycled2, burn2, landfill2,
+    total, burnBase, totPrev, totDiv, recPrevTotal, recPrevByMaterial, total2, recycled2, burn2, landfill2,
     rateBase, rate2, perCapBase, perCap2, hhPerCapBase, hhPerCap2,
     co2Plastic, co2Collect, co2PowerLoss, co2Saved,
     fiscal, foodLossValue, fracResults,
@@ -971,6 +1001,8 @@ function validateParams() {
   if (p.recycled > totalEmission() && totalEmission() > 0) issues.push("総資源化量が総排出量を上回っています。");
   if (p.hhFood + p.hhPaper + p.hhPlastic > 100) issues.push("生活系組成（生ごみ＋紙＋プラ）が100%を超えています。");
   if (p.bizFood + p.bizPaper + p.bizPlastic > 100) issues.push("事業系組成（生ごみ＋紙＋プラ）が100%を超えています。");
+  if (p.recFood + p.recPaper + p.recPlastic > p.recycled && p.recycled > 0)
+    issues.push("資源回収の成分内訳（生ごみ＋古紙＋プラ）が総資源化量を上回っています。");
   return issues;
 }
 
@@ -1272,7 +1304,8 @@ function renderTable(r) {
 
   const rows = [
     ["ごみ総排出量", fmt.int(r.total) + " t", fmt.int(r.total2) + " t", r.total2 - r.total, "t", true],
-    ["　うち発生抑制による削減", "—", "−" + fmt.int(r.totPrev) + " t", null],
+    ["　うち発生抑制による削減（可燃分）", "—", "−" + fmt.int(r.totPrev) + " t", null],
+    ["　うち資源回収分の連動削減", "—", "−" + fmt.int(r.recPrevTotal) + " t", null],
     ["　うち資源化への移行", "—", fmt.int(r.totDiv) + " t", null],
     ["総資源化量", fmt.int(params.recycled) + " t", fmt.int(r.recycled2) + " t", r.recycled2 - params.recycled, "t", false],
     ["リサイクル率", fmt.pct(r.rateBase), fmt.pct(r.rate2), r.rate2 - r.rateBase, "pt", false],
@@ -1426,23 +1459,25 @@ function runInverse() {
   const valueAt = m => metric.value(compute(inverseLevers(m, strategy, selected)));
   const meets = v => metric.higherIsGoal ? v >= rawTarget - 1e-9 : v <= rawTarget + 1e-9;
 
-  const v0 = valueAt(0), v100 = valueAt(100);
+  const v0 = valueAt(0);
   if (meets(v0)) {
     showResult("現状（<b>" + metric.fmt(v0) + "</b>）で既に目標を満たしています。削減率は0%のままです。", false);
     return;
   }
-  if (!meets(v100)) {
-    showResult("この戦略・対象成分では削減率100%でも目標に到達できません（最大到達値：<b>" + metric.fmt(v100) +
+
+  // 資源回収分への連動により指標が削減率に対して単調でない場合があるため、
+  // 0.1%刻みの走査で「目標を満たす最小の一律削減率」を求める
+  let m = null, best = v0;
+  for (let i = 1; i <= 1000; i++) {
+    const v = valueAt(i / 10);
+    if (metric.higherIsGoal ? v > best : v < best) best = v;
+    if (meets(v)) { m = i / 10; break; }
+  }
+  if (m == null) {
+    showResult("この戦略・対象成分では削減率100%でも目標に到達できません（最大到達値：<b>" + metric.fmt(best) +
       "</b>）。対象成分を増やす、または戦略を「バランス」に変更してください。", true);
     return;
   }
-
-  let lo = 0, hi = 100;
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    if (meets(valueAt(mid))) hi = mid; else lo = mid;
-  }
-  const m = Math.min(100, Math.ceil(hi * 10) / 10); // 0.1%刻みで切り上げ
 
   levers = inverseLevers(m, strategy, selected);
   clearActivePreset();
