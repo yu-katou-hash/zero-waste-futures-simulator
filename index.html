@@ -144,6 +144,9 @@
   }
   .warn-box ul { padding-left: 1.4em; }
   .warn-box.ok { border-left-color: var(--delta-good); }
+  /* 数字の読み方を添えるとき（警告ではない）。青系にして警告と区別する */
+  .warn-box.info { border-left-color: var(--series-burn); }
+  .warn-box b { font-weight: 700; }
 
   /* ---- 入力フォーム ---- */
   .settings-grid {
@@ -441,6 +444,14 @@
     <!-- KPIタイル -->
     <div class="tiles" id="tiles"></div>
 
+    <!--
+      リサイクル率の動きの読み方。タイルは ▼ を出すだけなので、
+      「なぜ下がったか」「連動が効いていないか」をここに1行で出す。
+      これが無いと、③計算方法タブを開かないかぎり
+      「リデュースしたのに悪化した」と読まれる。
+    -->
+    <div class="warn-box" id="rate-note" style="display:none" role="status"></div>
+
     <!-- シナリオプリセット + スライダー -->
     <div class="card">
       <h2>削減シナリオ</h2>
@@ -522,7 +533,7 @@
       <ul>
         <li>ごみ総排出量 = 生活系 + 事業系 + その他（入力から自動計算）。</li>
         <li>各成分について:発生抑制量 = 基準量 × 抑制率、資源化移行量 = (基準量 − 発生抑制量) × 資源化率。基準量 = 生活系可燃ごみ量（または事業系ごみ量）× 組成割合。</li>
-        <li>発生抑制の資源回収分への連動：発生抑制はごみの発生そのものの削減であるため、材料別（生ごみ・紙・プラ）の加重平均抑制率と同じ割合で、すでに資源回収されている同素材の量（データ入力の「資源回収量の成分内訳」）も減少させます。資源回収連動削減 = 資源回収量 × 加重平均抑制率。内訳を0のままにすると連動は働きません（可燃分のみの削減）。</li>
+        <li>発生抑制の資源回収分への連動：発生抑制はごみの発生そのものの削減であるため、材料別（生ごみ・紙・プラ）の加重平均抑制率と同じ割合で、すでに資源回収されている同素材の量（データ入力の「資源回収量の成分内訳」）も減少させます。資源回収連動削減 = 資源回収量 × 加重平均抑制率。<b>内訳を0のままにすると連動は働かず、増減の向きが変わります</b>（可燃分のみの削減になり、分母だけが減るためリサイクル率が上がる向きに出ます）。未入力のまま発生抑制を設定した場合は、シミュレーションタブの上部に警告が出ます。</li>
         <li>総排出量' = 総排出量 − Σ発生抑制量（可燃分） − Σ資源回収連動削減。資源化量' = 資源化量 + Σ資源化移行量 − Σ資源回収連動削減。リサイクル率' = 資源化量' ÷ 総排出量'。</li>
         <li><b>重要：</b>この連動により、古紙のようにすでに高い割合でリサイクルされている素材の発生抑制は、全体のリサイクル率を<b>下げる</b>ことがあります（分子・分母が同時に減るため）。これはリサイクル率という指標の構造によるもので、発生抑制の効果自体は総排出量・焼却量・CO2・コストで評価してください。廃棄物政策の優先順位（リデュース＞リユース＞リサイクル）では発生抑制が最上位です。</li>
         <li>焼却等処理量 = 総排出量 − 資源化量。焼却等処理量' = 焼却等処理量 − Σ発生抑制量 − Σ資源化移行量。</li>
@@ -680,6 +691,23 @@ const FRACTIONS = [
   { id: "bizPlastic", stream: "事業系", name: "プラスチック類",   compKey: "bizPlastic", baseKey: "business" },
 ];
 
+/*
+ * 素材と、その「すでに資源回収されている量」の入力欄の対応。
+ *
+ * 発生抑制はごみの発生そのものを減らすので、可燃ごみ中の対象成分と同じ割合で
+ * この資源回収量も減る。**ここが0のままだと連動が働かず、古紙のように
+ * すでに高い割合で回収されている素材をリデュースしたときに、
+ * リサイクル率が「上がる」向きに出てしまう**（分母だけが減るため）。
+ * 実測（横浜市サンプル・紙の抑制50%）では 28.3%（連動あり）と
+ * 33.7%（連動なし）で、符号が逆になる。
+ * そのため未入力を検知して知らせる（validateParams / renderRateNote）。
+ */
+const MATERIALS = [
+  { name: "生ごみ",         ids: ["hhFood", "bizFood"],       recKey: "recFood",    field: "生ごみ資源化量" },
+  { name: "紙類",           ids: ["hhPaper", "bizPaper"],     recKey: "recPaper",   field: "古紙回収量" },
+  { name: "プラスチック類", ids: ["hhPlastic", "bizPlastic"], recKey: "recPlastic", field: "プラ資源回収量" },
+];
+
 const PRESETS = [
   { name: "リセット", levers: {} },
   { name: "控えめ（短期）",   levers: { hhFood:[10,10], hhPaper:[5,15],  hhPlastic:[10,20], bizFood:[10,10], bizPaper:[5,15],  bizPlastic:[10,20] } },
@@ -743,12 +771,7 @@ function compute(leverSet = levers) {
 
   // 発生抑制の資源回収分への連動：
   // 発生抑制はごみの発生そのものの削減なので、材料別の加重平均抑制率と
-  // 同じ割合で、すでに資源回収されている同素材の量も減少させる
-  const MATERIALS = [
-    { name: "生ごみ", ids: ["hhFood", "bizFood"], recKey: "recFood" },
-    { name: "紙類", ids: ["hhPaper", "bizPaper"], recKey: "recPaper" },
-    { name: "プラスチック類", ids: ["hhPlastic", "bizPlastic"], recKey: "recPlastic" },
-  ];
+  // 同じ割合で、すでに資源回収されている同素材の量も減少させる（MATERIALS）
   let recPrevTotal = 0;
   const recPrevByMaterial = [];
   for (const m of MATERIALS) {
@@ -757,7 +780,9 @@ function compute(leverSet = levers) {
     const rate = baseSum > 0 ? parts.reduce((s, f) => s + f.prevented, 0) / baseSum : 0;
     const recPrev = (p[m.recKey] || 0) * rate;
     recPrevTotal += recPrev;
-    recPrevByMaterial.push({ name: m.name, recBase: p[m.recKey] || 0, rate, recPrev });
+    recPrevByMaterial.push({
+      name: m.name, field: m.field, recBase: p[m.recKey] || 0, rate, recPrev,
+    });
   }
 
   const total2 = total - totPrev - recPrevTotal;
@@ -1003,6 +1028,18 @@ function validateParams() {
   if (p.bizFood + p.bizPaper + p.bizPlastic > 100) issues.push("事業系組成（生ごみ＋紙＋プラ）が100%を超えています。");
   if (p.recFood + p.recPaper + p.recPlastic > p.recycled && p.recycled > 0)
     issues.push("資源回収の成分内訳（生ごみ＋古紙＋プラ）が総資源化量を上回っています。");
+  /*
+   * 内訳が丸ごと空のときは知らせる。任意項目だが、**空のままだと
+   * 発生抑制と資源回収の連動が働かず、リサイクル率の増減の符号が
+   * 変わる**（古紙のリデュースで率が上がる向きに出る）。
+   * 「足りない入力」ではなく「結果の向きが変わる入力」なので、
+   * 他の必須項目と同じ扱いで出す。
+   */
+  if (p.recycled > 0 && p.recFood + p.recPaper + p.recPlastic <= 0)
+    issues.push("資源回収量の成分内訳（生ごみ・古紙・プラ）が未入力です。"
+      + "このままでは発生抑制が資源回収量に連動しないため、"
+      + "古紙のように既に多くが回収されている素材をリデュースしても"
+      + "リサイクル率が下がらず、実際より高く出ます。");
   return issues;
 }
 
@@ -1027,7 +1064,10 @@ function renderValidation() {
   const simWarn = document.getElementById("sim-warn");
   if (issues.length > 0) {
     simWarn.style.display = "block";
-    simWarn.textContent = "⚠️ 基準データが不足しています（" + issues.length + "件）。「① データ入力」タブで入力を完了してください。";
+    // 「不足」と言い切らない。未入力の必須項目だけでなく、
+    // 資源回収量の内訳のように「入れないと結果の向きが変わる」項目も
+    // ここに並ぶため（renderRateNote 参照）
+    simWarn.textContent = "⚠️ 入力に確認事項が " + issues.length + "件あります。「① データ入力」タブをご確認ください。";
   } else {
     simWarn.style.display = "none";
   }
@@ -1302,10 +1342,13 @@ function renderTable(r) {
   table.appendChild(thead);
   const tbody = el("tbody");
 
+  // 0 のときに「−0 t」と出さない（連動が効いていないときに実際に出た）
+  const minus = n => (n >= 0.5 ? "−" + fmt.int(n) : "0") + " t";
+
   const rows = [
     ["ごみ総排出量", fmt.int(r.total) + " t", fmt.int(r.total2) + " t", r.total2 - r.total, "t", true],
-    ["　うち発生抑制による削減（可燃分）", "—", "−" + fmt.int(r.totPrev) + " t", null],
-    ["　うち資源回収分の連動削減", "—", "−" + fmt.int(r.recPrevTotal) + " t", null],
+    ["　うち発生抑制による削減（可燃分）", "—", minus(r.totPrev), null],
+    ["　うち資源回収分の連動削減", "—", minus(r.recPrevTotal), null],
     ["　うち資源化への移行", "—", fmt.int(r.totDiv) + " t", null],
     ["総資源化量", fmt.int(params.recycled) + " t", fmt.int(r.recycled2) + " t", r.recycled2 - params.recycled, "t", false],
     ["リサイクル率", fmt.pct(r.rateBase), fmt.pct(r.rate2), r.rate2 - r.rateBase, "pt", false],
@@ -1346,9 +1389,71 @@ function renderTable(r) {
   wrap.appendChild(table);
 }
 
+/*
+ * リサイクル率の動きの読み方を1行で出す。
+ *
+ * 【なぜ要るか（2026-09-10 編集長のご指摘）】
+ * 「紙のリデュースが増えると全体のリサイクル率は下がるはずだが、
+ * 式に入っているか」というご質問。式には入っている（recPrevTotal）が、
+ * 画面はタイルに赤い ▼ を出すだけで理由を出していなかった。
+ * 説明は③計算方法タブにしか無く、開かなければ
+ * 「リデュースしたのに悪化した」と読まれる。
+ *
+ * それより重い問題として、**「資源回収量の成分内訳」が空だと連動が
+ * 黙って外れ、率が上がる向きに出る**。空で使われたことに気づけないと
+ * 政策判断を誤らせるので、そのときは警告として出す。
+ */
+function renderRateNote(r) {
+  const box = document.getElementById("rate-note");
+  box.replaceChildren();
+  const t = n => fmt.int(n) + " t";
+
+  // 抑制の対象になっているのに、資源回収量の内訳が空の素材
+  const missing = r.recPrevByMaterial.filter(m => m.rate > 1e-9 && m.recBase <= 0);
+  // 実際に連動して減った素材
+  const linked = r.recPrevByMaterial.filter(m => m.recPrev > 1e-9);
+
+  let cls = null, html = "";
+  if (missing.length > 0) {
+    cls = "warn-box";
+    html = "⚠️ " + missing.map(m => m.name).join("・")
+      + "の発生抑制を見込んでいますが、データ入力タブの「"
+      + missing.map(m => m.field).join("」「")
+      + "」が未入力です。すでに資源回収されている分の減少が計算に入らないため、"
+      + "<b>リサイクル率は実際より高く出ています</b>（発生抑制で分母だけが減るため）。"
+      + "この欄を埋めると、リデュースが率を押し下げる分まで反映されます。";
+  } else if (linked.length > 0 && r.rate2 < r.rateBase - 1e-9) {
+    cls = "warn-box info";
+    html = "リサイクル率が下がるのは、発生抑制にともなって"
+      + linked.map(m => m.name + "の資源回収 " + t(m.recPrev)).join("・")
+      + " も減るためです（分子と分母が同時に減少）。"
+      + "同じ試算で<b>総排出量は " + t(r.total - r.total2) + " 減・焼却等は "
+      + t(r.burnBase - r.burn2) + " 減</b>で、発生抑制の効果自体は出ています。"
+      + "リサイクル率という指標の構造によるもので、"
+      + "廃棄物政策の優先順位（リデュース＞リユース＞リサイクル）では発生抑制が最上位です。";
+  } else if (linked.length > 0) {
+    cls = "warn-box info";
+    html = "発生抑制にともない"
+      + linked.map(m => m.name + "の資源回収 " + t(m.recPrev)).join("・")
+      + " も減るものとして計算しています（連動分は詳細指標の"
+      + "「うち資源回収分の連動削減」に出ています）。";
+  }
+
+  if (!cls) {
+    box.style.display = "none";
+    return;
+  }
+  box.className = cls;
+  // 逆算モードの結果表示と同じ書き方に揃える。差し込むのは
+  // このファイル内の定型文と fmt を通した数字だけで、入力値は入らない
+  box.insertAdjacentHTML("afterbegin", html);
+  box.style.display = "block";
+}
+
 function render() {
   const r = compute();
   renderTiles(r);
+  renderRateNote(r);
   renderTotalChart(r);
   renderFracChart(r);
   renderTable(r);
