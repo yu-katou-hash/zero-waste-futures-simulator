@@ -525,14 +525,14 @@
       <h2>計算方法・前提条件</h2>
       <h3>必要な入力データ</h3>
       <ul>
-        <li>人口、生活系・事業系・その他（集団回収等）のごみ排出量、総資源化量、埋立最終処分量、生活系可燃ごみ量：自治体の「一般廃棄物処理実態調査（環境省）」調書や清掃事業概要から転記できます。</li>
+        <li>人口、生活系・事業系・その他（集団回収等）のごみ排出量、総資源化量、埋立最終処分量、生活系・事業系の可燃ごみ量：自治体の「一般廃棄物処理実態調査（環境省）」調書や清掃事業概要から転記できます。</li>
         <li>可燃ごみ組成（生活系・事業系それぞれの生ごみ・紙類・プラスチック類の湿重量%）：ごみ組成調査（ごみ質分析）結果から転記します。3成分の合計が100%以下であることを確認してください（残りは木竹・繊維・その他等）。</li>
         <li>ごみ1t当たり処理経費：清掃事業概要等の「ごみ処理事業経費 ÷ 処理量」。</li>
       </ul>
       <h3>計算式</h3>
       <ul>
         <li>ごみ総排出量 = 生活系 + 事業系 + その他（入力から自動計算）。</li>
-        <li>各成分について:発生抑制量 = 基準量 × 抑制率、資源化移行量 = (基準量 − 発生抑制量) × 資源化率。基準量 = 生活系可燃ごみ量（または事業系ごみ量）× 組成割合。</li>
+        <li>各成分について:発生抑制量 = 基準量 × 抑制率、資源化移行量 = (基準量 − 発生抑制量) × 資源化率。基準量 = 可燃ごみ量（生活系・事業系それぞれ）× 組成割合。</li>
         <li>発生抑制の資源回収分への連動：発生抑制はごみの発生そのものの削減であるため、材料別（生ごみ・紙・プラ）の加重平均抑制率と同じ割合で、すでに資源回収されている同素材の量（データ入力の「資源回収量の成分内訳」）も減少させます。資源回収連動削減 = 資源回収量 × 加重平均抑制率。<b>内訳を0のままにすると連動は働かず、増減の向きが変わります</b>（可燃分のみの削減になり、分母だけが減るためリサイクル率が上がる向きに出ます）。未入力のまま発生抑制を設定した場合は、シミュレーションタブの上部に警告が出ます。</li>
         <li>総排出量' = 総排出量 − Σ発生抑制量（可燃分） − Σ資源回収連動削減。資源化量' = 資源化量 + Σ資源化移行量 − Σ資源回収連動削減。リサイクル率' = 資源化量' ÷ 総排出量'。</li>
         <li><b>重要：</b>この連動により、古紙のようにすでに高い割合でリサイクルされている素材の発生抑制は、全体のリサイクル率を<b>下げる</b>ことがあります（分子・分母が同時に減るため）。これはリサイクル率という指標の構造によるもので、発生抑制の効果自体は総排出量・焼却量・CO2・コストで評価してください。廃棄物政策の優先順位（リデュース＞リユース＞リサイクル）では発生抑制が最上位です。</li>
@@ -556,7 +556,7 @@
       <h3>留意事項</h3>
       <ul>
         <li>本ツールは政策検討用の簡易シミュレーションです。組成割合は調査年次・季節により変動します。</li>
-        <li>事業系ごみは全量が焼却系処理であると仮定しています。実態に合わせて組成割合側で調整してください。</li>
+        <li>事業系可燃ごみ量には、焼却に回った事業系ごみの量を入れます。資源化・直接埋立された分は含めません。</li>
         <li>資源化移行分は排出量に残ったまま資源化量に計上されます（リサイクル率の分子増）。発生抑制分は排出量自体が減少します。</li>
         <li>入力データはこのブラウザのlocalStorageに保存されます。サーバーには送信されません。</li>
       </ul>
@@ -624,7 +624,7 @@ const COEFF_DEFAULTS = {
 const BLANK = {
   muniName: "", baseYear: "",
   pop: 0, household: 0, business: 0, otherEmission: 0,
-  recycled: 0, landfill: 0, hhBurnable: 0,
+  recycled: 0, landfill: 0, hhBurnable: 0, bizBurnable: 0,
   hhFood: 0, hhPaper: 0, hhPlastic: 0,
   bizFood: 0, bizPaper: 0, bizPlastic: 0,
   recFood: 0, recPaper: 0, recPlastic: 0,
@@ -637,7 +637,9 @@ const SAMPLE_YOKOHAMA = {
   muniName: "横浜市", baseYear: "令和5年度",
   pop: 3771766,
   household: 651009, business: 340756, otherEmission: 128058,
-  recycled: 297483, landfill: 117035, hhBurnable: 500980,
+// bizBurnable は横浜市資源循環局「令和6年度 事業概要」p.25「処理状況」の事業系の焼却量。
+// 事業系 340,756t ＝ 焼却 274,207t ＋ 資源化 64,230t ＋ 直接埋立 2,319t（合計が business と一致）
+  recycled: 297483, landfill: 117035, hhBurnable: 500980, bizBurnable: 274207,
   hhFood: 33.9, hhPaper: 28.5, hhPlastic: 12.5,
   bizFood: 51.1, bizPaper: 31.6, bizPlastic: 7.9,
   recFood: 5000, recPaper: 150000, recPlastic: 15000,
@@ -658,6 +660,7 @@ const INPUT_FIELDS = [
   { key: "recycled",      label: "総資源化量（t/年）", required: true },
   { key: "landfill",      label: "埋立最終処分量（t/年）" },
   { key: "hhBurnable",    label: "生活系可燃ごみ（t/年）", required: true },
+  { key: "bizBurnable",   label: "事業系可燃ごみ（焼却量, t/年）" },
   { group: "可燃ごみ組成（湿重量%）", note: "組成調査（ごみ質分析）結果から。生ごみ・紙・プラの3成分のみでOK（残りは木竹・繊維・その他等として自動的に対象外になります）。" },
   { key: "hhFood",     label: "生活系：生ごみ（%）", step: 0.1, required: true },
   { key: "hhPaper",    label: "生活系：紙類（%）", step: 0.1 },
@@ -686,9 +689,9 @@ const FRACTIONS = [
   { id: "hhFood",     stream: "生活系", name: "生ごみ（厨芥類）", compKey: "hhFood",     baseKey: "hhBurnable" },
   { id: "hhPaper",    stream: "生活系", name: "紙類",             compKey: "hhPaper",    baseKey: "hhBurnable" },
   { id: "hhPlastic",  stream: "生活系", name: "プラスチック類",   compKey: "hhPlastic",  baseKey: "hhBurnable" },
-  { id: "bizFood",    stream: "事業系", name: "生ごみ",           compKey: "bizFood",    baseKey: "business" },
-  { id: "bizPaper",   stream: "事業系", name: "紙類",             compKey: "bizPaper",   baseKey: "business" },
-  { id: "bizPlastic", stream: "事業系", name: "プラスチック類",   compKey: "bizPlastic", baseKey: "business" },
+  { id: "bizFood",    stream: "事業系", name: "生ごみ",           compKey: "bizFood",    baseKey: "bizBurnable" },
+  { id: "bizPaper",   stream: "事業系", name: "紙類",             compKey: "bizPaper",   baseKey: "bizBurnable" },
+  { id: "bizPlastic", stream: "事業系", name: "プラスチック類",   compKey: "bizPlastic", baseKey: "bizBurnable" },
 ];
 
 /*
@@ -1023,6 +1026,25 @@ function validateParams() {
   if (!p.hhFood && !p.hhPaper && !p.hhPlastic && !p.bizFood && !p.bizPaper && !p.bizPlastic)
     issues.push("組成割合がすべて0%です。少なくとも1成分を入力してください。");
   if (p.hhBurnable > p.household && p.household > 0) issues.push("生活系可燃ごみが生活系排出量を上回っています。");
+  /*
+   * 事業系の削減対象は事業系可燃ごみ（焼却量）。以前は事業系ごみ排出量
+   * （資源化済みを含む総量）に組成を掛けていて、横浜市サンプルで事業系の
+   * 90.6% を可燃ごみ扱いしていた。未入力の保存データは 0 になり、
+   * 事業系のスライダーが効かなくなるので知らせる。
+   */
+  if (!p.bizBurnable && (p.bizFood || p.bizPaper || p.bizPlastic))
+    issues.push("事業系可燃ごみ（焼却量）が未入力です。事業系のスライダーを動かしても結果が変わりません。");
+  if (p.bizBurnable > p.business && p.business > 0) issues.push("事業系可燃ごみが事業系排出量を上回っています。");
+  /*
+   * 削減できる量（各成分の 可燃ごみ量 × 組成%）の合計が焼却等の量を超えると、
+   * 削減率を上げたときに焼却量・埋立量が負に、リサイクル率が100%超になる
+   * （compute() は丸めない）。可燃ごみ量そのものではなく組成を掛けた後で比べる。
+   */
+  const burnBase = totalEmission() - (p.recycled || 0);
+  const reducible = FRACTIONS.reduce((s, f) => s + (p[f.baseKey] || 0) * (p[f.compKey] || 0) / 100, 0);
+  if (reducible > 0 && reducible > burnBase)
+    issues.push("削減対象（可燃ごみ × 組成）の合計が、焼却等の量を上回っています。"
+      + "削減率を上げると焼却量がマイナスになります。");
   if (p.recycled > totalEmission() && totalEmission() > 0) issues.push("総資源化量が総排出量を上回っています。");
   if (p.hhFood + p.hhPaper + p.hhPlastic > 100) issues.push("生活系組成（生ごみ＋紙＋プラ）が100%を超えています。");
   if (p.bizFood + p.bizPaper + p.bizPlastic > 100) issues.push("事業系組成（生ごみ＋紙＋プラ）が100%を超えています。");
@@ -1147,9 +1169,9 @@ function buildSliders() {
   wrap.replaceChildren();
   for (const stream of ["生活系", "事業系"]) {
     const col = el("div");
-    const baseTons = stream === "生活系" ? params.hhBurnable : params.business;
+    const baseTons = stream === "生活系" ? params.hhBurnable : params.bizBurnable;
     const head = el("div", "group-head",
-      (stream === "生活系" ? "生活系可燃ごみ（" : "事業系ごみ（") + fmt.manT(baseTons) + "）");
+      (stream === "生活系" ? "生活系可燃ごみ（" : "事業系可燃ごみ（") + fmt.manT(baseTons) + "）");
     head.style.marginTop = "0";
     col.appendChild(head);
     for (const f of FRACTIONS.filter(f => f.stream === stream)) {
