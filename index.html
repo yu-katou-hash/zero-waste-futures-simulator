@@ -637,9 +637,16 @@ const SAMPLE_YOKOHAMA = {
   muniName: "横浜市", baseYear: "令和5年度",
   pop: 3771766,
   household: 651009, business: 340756, otherEmission: 128058,
-// bizBurnable は横浜市資源循環局「令和6年度 事業概要」p.25「処理状況」の事業系の焼却量。
-// 事業系 340,756t ＝ 焼却 274,207t ＋ 資源化 64,230t ＋ 直接埋立 2,319t（合計が business と一致）
-  recycled: 297483, landfill: 117035, hhBurnable: 500980, bizBurnable: 274207,
+// bizBurnable は横浜市の令和5年度・事業系ごみのうち可燃ごみ（燃やすごみ）としての
+// 処理量 276,520t（2026-09-23 編集長ご提供）。
+//
+// **6t の差は、確定値と速報値の差**（2026-09-23 編集長ご教示）。
+//   確定値   276,520t  ← これを既定値にしている
+//   速報値   276,526t  ＝ 事業概要 p.25 の 焼却 274,207t ＋ 直接埋立 2,319t
+// 同じ p.25 の 事業系 340,756t ＝ 焼却 274,207 ＋ 資源化 64,230 ＋ 直接埋立 2,319
+// は速報値どうしなので合計が一致する。
+// **速報値のほうを見て「直した」つもりで 274,207 や 276,526 に戻さないこと。**
+  recycled: 297483, landfill: 117035, hhBurnable: 500980, bizBurnable: 276520,
   hhFood: 33.9, hhPaper: 28.5, hhPlastic: 12.5,
   bizFood: 51.1, bizPaper: 31.6, bizPlastic: 7.9,
   recFood: 5000, recPaper: 150000, recPlastic: 15000,
